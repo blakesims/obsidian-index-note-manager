@@ -1,4 +1,6 @@
-import { Answer, Question, NoteConfig } from "./types";
+import { Answer, Question, NoteConfig, NoteSubtype } from "./types";
+
+import { App } from "obsidian";
 
 export class PlaceholderUtils {
 	static replacePlaceholders(
