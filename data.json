@@ -8,7 +8,7 @@
           {
             "id": "Student",
             "folder": "Tutoring/Students/{{student_name}}",
-            "template": "Student Homepage Template - Body V5.1.md",
+            "template": "Templates/Student Homepage Template - Body V5.1.md",
             "frontMatter": [
               {
                 "id": "tags",
@@ -40,14 +40,15 @@
             "questions": [
               "student_name_question",
               "student_email_question",
-              "university_course_for_student_homepage"
+              "university_course_for_student_homepage",
+              "tutor_name_question"
             ],
             "title": "{{student_name}}'s Homepage"
           },
           {
             "id": "University",
             "folder": "Tutoring/Universities/{{university}}",
-            "template": "Templates/University Homepage Template - Body v0.1.md",
+            "template": "Templates/University Homepage Template.md",
             "indexName": "university_courses_index.json",
             "questions": [
               "university_name_question"
@@ -69,7 +70,7 @@
           {
             "id": "Course",
             "folder": "Tutoring/Universities/{{university}}",
-            "template": "Templates/Course Homepage Template - Body v0.1.md",
+            "template": "Templates/Course Homepage Template.md",
             "indexName": "course",
             "questions": [
               "university_course_for_course_homepage"
@@ -118,77 +119,39 @@
         ]
       },
       {
-        "id": "Meta",
-        "baseFrontMatterPath": "Templates/Meta Base Front Matter.md",
-        "subtypes": [
-          {
-            "id": "Obsidian",
-            "folder": "Meta/Obsidian",
-            "template": "Meta Note Template.md",
-            "questions": [
-              "author_question",
-              "title_question"
-            ],
-            "title": "{{title}}"
-          },
-          {
-            "id": "Business",
-            "folder": "Meta/Business",
-            "template": "Meta Note Template.md",
-            "questions": [
-              "author_question"
-            ]
-          },
-          {
-            "id": "Guide",
-            "folder": "Meta/Guides",
-            "template": "Meta Note Template.md",
-            "questions": [
-              "author_question",
-              "title_question"
-            ],
-            "title": "{{title}}"
-          },
-          {
-            "id": "Kanban",
-            "folder": "Meta/Kanban",
-            "template": "Meta Note Template.md",
-            "questions": [
-              "author_question",
-              "title_question"
-            ],
-            "title": "{{title}}"
-          }
-        ]
-      },
-      {
         "id": "General Note",
         "baseFrontMatterPath": "Templates/General Base Front Matter.md",
         "subtypes": [
           {
             "id": "Tutoring Note",
-            "template": "New Student Note Template.md",
+            "template": "Templates/New Student Note Template.md",
             "questions": [
               "author_question",
               "subject_topic_note"
-            ]
-          },
-          {
-            "id": "Mathematics Note",
-            "template": "Mathematics Note Template.md",
-            "questions": [
-              "author_question",
-              "subject_topic_note"
-            ]
-          }
-        ]
-      },
-      {
-        "id": "Blank",
-        "subtypes": [
-          {
-            "id": "empty",
-            "questions": []
+            ],
+            "frontMatter": [
+              {
+                "id": "tags",
+                "value": "note/tutoring",
+                "type": "string"
+              },
+              {
+                "id": "author",
+                "value": "{{author}}",
+                "type": "string"
+              },
+              {
+                "id": "subject",
+                "value": "{{subject_name}}",
+                "type": "link"
+              },
+              {
+                "id": "topic",
+                "value": "{{topic_name}}",
+                "type": "link"
+              }
+            ],
+            "title": "{{subject_name}} - {{topic_name}}"
           }
         ]
       }
@@ -293,46 +256,6 @@
         ]
       },
       {
-        "questionId": "subject_name_question",
-        "answerId": "subject_name",
-        "type": "tpsuggester",
-        "indexName": "subject_topics_index.json",
-        "prompt": "Enter the subject name:",
-        "allowManualEntry": true,
-        "createNewEntry": true,
-        "multipleSelections": false
-      },
-      {
-        "questionId": "subject_topic_topic_homepage",
-        "type": "nestedTpsuggester",
-        "indexName": "subject_topics_index.json",
-        "nest": [
-          {
-            "questionId": "subject_name_question",
-            "answerId": "subject_name",
-            "prompt": "What subject/s contain this topic?",
-            "allowManualEntry": true,
-            "createNewEntry": true,
-            "newEntryNoteType": "Homepage",
-            "newEntryNoteSubtype": "Subject",
-            "multipleSelections": true,
-            "frontMatterType": "link"
-          },
-          {
-            "questionId": "topic_name_question",
-            "answerId": "topic_name",
-            "prompt": "Enter the topic name:",
-            "allowManualEntry": true,
-            "createNewEntry": false,
-            "newEntryNoteType": "Homepage",
-            "newEntryNoteSubtype": "Topic",
-            "multipleSelections": false,
-            "parentAnswerId": "subject_name",
-            "frontMatterType": "string"
-          }
-        ]
-      },
-      {
         "questionId": "subject_topic_note",
         "type": "nestedTpsuggester",
         "indexName": "subject",
@@ -381,38 +304,11 @@
         "allowManualEntry": true,
         "createNewEntry": false,
         "multipleSelections": false
-      },
-      {
-        "questionId": "title_question",
-        "answerId": "title",
-        "type": "inputPrompt",
-        "prompt": "Enter the title of the note:"
       }
     ]
   },
   "indexConfig": {
     "indices": {
-      "tutor": {
-        "nested": false,
-        "entries": {
-          "Tutor1": {
-            "metadata": {
-              "level": 0
-            }
-          },
-          "Tutor2": {
-            "metadata": {
-              "level": 0
-            }
-          },
-          "TestNewIndex": {
-            "metadata": {
-              "level": 0,
-              "type": "tutor"
-            }
-          }
-        }
-      },
       "university": {
         "nested": true,
         "level": 0,
@@ -420,14 +316,10 @@
           "course"
         ],
         "entries": {
-          "University A": {
+          "universityA": {
             "metadata": {
-              "level": 0
-            }
-          },
-          "University B": {
-            "metadata": {
-              "level": 0
+              "level": 0,
+              "parents": []
             }
           }
         }
@@ -439,24 +331,44 @@
           "university"
         ],
         "entries": {
-          "Course 1": {
+          "CourseA": {
             "metadata": {
-              "level": 1,
-              "parents": [
-                "University A",
-                "University B"
-              ]
-            }
-          },
-          "Course 2": {
-            "metadata": {
-              "level": 1,
-              "parents": [
-                "University A"
-              ]
+              "level": 0,
+              "parents": []
             }
           }
         }
+      },
+      "student": {
+        "nested": false,
+        "entries": {}
+      },
+      "tutor": {
+        "nested": false,
+        "entries": {
+          "TutorA": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            }
+          }
+        }
+      },
+      "subject": {
+        "nested": true,
+        "level": 0,
+        "children": [
+          "topic"
+        ],
+        "entries": {}
+      },
+      "topic": {
+        "nested": true,
+        "level": 1,
+        "parents": [
+          "subject"
+        ],
+        "entries": {}
       }
     }
   }
