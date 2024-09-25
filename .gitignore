@@ -16,7 +16,10 @@ main.js
 *.map
 
 # obsidian
-data.json
+# data.json
+# I commented data.json for dev purposes for now
+
+
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
