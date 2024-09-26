@@ -84,6 +84,7 @@ export class ConfigManager {
 	async updateIndexEntries(
 		indexName: string,
 		newEntries: Record<string, IndexEntry>,
+		parentEntry: string | null = null,
 	): Promise<void> {
 		if (!this.data.indexConfig.indices[indexName]) {
 			this.data.indexConfig.indices[indexName] = {
@@ -99,31 +100,29 @@ export class ConfigManager {
 			// Set the correct level based on the index configuration
 			entryData.metadata.level = indexConfig.level;
 
+			// Set the parent if provided
+			if (parentEntry) {
+				entryData.metadata.parents = [parentEntry];
+			}
+
 			this.data.indexConfig.indices[indexName].entries[entryName] =
 				entryData;
 
 			// Update parent entries if this is a nested entry
-			if (
-				entryData.metadata.parents &&
-				entryData.metadata.parents.length > 0
-			) {
-				for (const parentName of entryData.metadata.parents) {
-					// Find the correct parent index
-					const parentIndexName =
-						indexConfig.parents?.[0] || indexName;
-					const parentEntry =
-						this.data.indexConfig.indices[parentIndexName]?.entries[
-							parentName
-						];
-					if (parentEntry) {
-						if (!parentEntry.metadata.children) {
-							parentEntry.metadata.children = [];
-						}
-						if (
-							!parentEntry.metadata.children.includes(entryName)
-						) {
-							parentEntry.metadata.children.push(entryName);
-						}
+			if (parentEntry) {
+				const parentIndexName = indexConfig.parents?.[0] || indexName;
+				const parentEntryData =
+					this.data.indexConfig.indices[parentIndexName]?.entries[
+						parentEntry
+					];
+				if (parentEntryData) {
+					if (!parentEntryData.metadata.children) {
+						parentEntryData.metadata.children = [];
+					}
+					if (
+						!parentEntryData.metadata.children.includes(entryName)
+					) {
+						parentEntryData.metadata.children.push(entryName);
 					}
 				}
 			}

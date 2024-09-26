@@ -59,6 +59,12 @@ export class NoteCreator {
 				subtypeConfig,
 				noteConfig,
 			);
+
+			// Add a check to ensure requiredAnswerIds is an array
+			if (!Array.isArray(requiredAnswerIds)) {
+				throw new Error("Required answer IDs is not an array");
+			}
+
 			log(
 				"answerIdDebug",
 				"Required answerIds:",
@@ -85,7 +91,6 @@ export class NoteCreator {
 				);
 				return;
 			}
-
 			const frontMatter =
 				await this.frontMatterGenerator.generateFrontMatter(
 					noteType.id,
@@ -146,7 +151,6 @@ export class NoteCreator {
 			);
 
 			// If there are missing answers, prompt for them
-			// Inside createNewEntryNote method
 			for (const missingId of missingAnswerIds) {
 				const question = noteConfig.questions.find(
 					(q: Question) => q.answerId === missingId,
@@ -166,7 +170,7 @@ export class NoteCreator {
 				type: "string",
 				metadata: {
 					questionType: "inputPrompt",
-					indexed: false,
+					indexed: true,
 					level: null,
 					parentAnswerId: null,
 				},
