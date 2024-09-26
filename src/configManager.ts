@@ -1,5 +1,5 @@
 import { Plugin } from "obsidian";
-import { NoteConfig, GlobalIndex } from "./types";
+import { IndexEntry, NoteConfig, GlobalIndex } from "./types";
 import { log } from "./debugUtils";
 
 interface PluginData {
@@ -79,23 +79,22 @@ export class ConfigManager {
 
 	async updateIndexEntries(
 		indexName: string,
-		newEntries: Record<
-			string,
-			{
-				metadata: {
-					level: number;
-					parents: string[];
-					children?: string[];
-				};
-			}
-		>,
+		newEntries: Record<string, IndexEntry>,
 	): Promise<void> {
 		if (!this.data.indexConfig.indices[indexName]) {
-			// Updated to match the structure of data.json
-			this.data.indexConfig.indices[indexName] = { entries: {} };
+			this.data.indexConfig.indices[indexName] = {
+				nested: false,
+				level: 0,
+				entries: {},
+			};
 		}
 
+		const indexConfig = this.data.indexConfig.indices[indexName];
+
 		for (const [entryName, entryData] of Object.entries(newEntries)) {
+			// Set the correct level based on the index configuration
+			entryData.metadata.level = indexConfig.level;
+
 			this.data.indexConfig.indices[indexName].entries[entryName] =
 				entryData;
 
@@ -105,8 +104,11 @@ export class ConfigManager {
 				entryData.metadata.parents.length > 0
 			) {
 				for (const parentName of entryData.metadata.parents) {
+					// Find the correct parent index
+					const parentIndexName =
+						indexConfig.parents?.[0] || indexName;
 					const parentEntry =
-						this.data.indexConfig.indices[indexName].entries[
+						this.data.indexConfig.indices[parentIndexName]?.entries[
 							parentName
 						];
 					if (parentEntry) {

@@ -66,6 +66,8 @@ export class QuestionHandler {
 	private async handleTpsuggester(
 		question: Question,
 		existingAnswers: Record<string, Answer>,
+		nestingLevel: number = 0,
+		parentAnswerId: string | null = null,
 	): Promise<Answer> {
 		const {
 			answerId,
@@ -74,8 +76,8 @@ export class QuestionHandler {
 			allowManualEntry,
 			multipleSelections,
 			createNewEntry,
-			newEntryNoteType = "defaultNoteType", // Provide default value
-			newEntryNoteSubtype = "defaultNoteSubtype", // Provide default value
+			newEntryNoteType = "defaultNoteType",
+			newEntryNoteSubtype = "defaultNoteSubtype",
 		} = question;
 
 		const replacedPrompt = this.placeholderUtils.replacePlaceholders(
@@ -89,9 +91,8 @@ export class QuestionHandler {
 
 		log(
 			"questionFlowDebug",
-			`Handling tpsuggester for question: ${question.questionId}, answerId: ${answerId}`,
+			`Handling tpsuggester for question: ${question.questionId}, answerId: ${answerId}, nestingLevel: ${nestingLevel}, parentAnswerId: ${parentAnswerId}`,
 		);
-
 		let choices: string[] = [];
 		let indexData: Record<string, any> = {};
 
@@ -230,9 +231,12 @@ export class QuestionHandler {
 			}
 		}
 
+		// When creating the answer object, include the new metadata
 		return this.createAnswerObject(finalAnswer, {
 			questionType: "tpsuggester",
-			...metadata,
+			indexed: !!indexName,
+			level: nestingLevel,
+			parentAnswerId: parentAnswerId,
 		});
 	}
 
@@ -246,6 +250,8 @@ export class QuestionHandler {
 		if (!Array.isArray(nest)) {
 			throw new Error("nest is not an array");
 		}
+
+		let parentAnswerId: string | null = null;
 
 		for (let i = 0; i < nest.length; i++) {
 			const nestedQuestion = nest[i];
@@ -261,26 +267,43 @@ export class QuestionHandler {
 			const result = await this.handleTpsuggester(
 				tpsuggesterQuestion,
 				answers,
+				i, // Pass the current nesting level
+				parentAnswerId, // Pass the parent answer ID
 			);
 			answers[nestedIndexName] = result;
 
-			// Update parent reference for the next nested question
-			if (i < nest.length - 1) {
-				const nextNestedQuestion = nest[i + 1];
-				if (
-					nextNestedQuestion.parents &&
-					nextNestedQuestion.parents.includes(nestedIndexName)
-				) {
-					answers[nestedIndexName] = result;
-				}
-			}
+			// Update parentAnswerId for the next iteration
+			parentAnswerId = nestedIndexName;
 		}
 
 		return this.createAnswerObject(answers, {
 			questionType: "nestedTpsuggester",
+			indexed: !!indexName,
+			level: nest.length - 1, // The level is the depth of the nest
+			parentAnswerId: null, // The nested structure itself doesn't have a parent
 		});
 	}
 
+	private createAnswerObject(
+		value: any,
+		metadata: {
+			questionType: string;
+			indexed?: boolean;
+			level?: number | null;
+			parentAnswerId?: string | null;
+		},
+	): Answer {
+		return {
+			value: value,
+			type: Array.isArray(value) ? "array" : typeof value,
+			metadata: {
+				questionType: metadata.questionType,
+				indexed: metadata.indexed || false,
+				level: metadata.level ?? null,
+				parentAnswerId: metadata.parentAnswerId ?? null,
+			},
+		};
+	}
 	getRequiredAnswerIds(
 		subtypeConfig: NoteSubtype,
 		noteConfig: NoteConfig,
@@ -350,27 +373,6 @@ export class QuestionHandler {
 			`Required answer IDs: ${JSON.stringify(requiredAnswerIds)}`,
 		);
 		return requiredAnswerIds;
-	}
-
-	private createAnswerObject(
-		value: any,
-		metadata: {
-			questionType: string;
-			indexed?: boolean;
-			level?: number | null;
-			parentAnswerId?: string | null;
-		},
-	): Answer {
-		return {
-			value: value,
-			type: Array.isArray(value) ? "array" : typeof value,
-			metadata: {
-				questionType: metadata.questionType,
-				indexed: metadata.indexed || false,
-				level: metadata.level || null,
-				parentAnswerId: metadata.parentAnswerId || null,
-			},
-		};
 	}
 
 	private async getIndexEntries(

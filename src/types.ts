@@ -1,17 +1,21 @@
-export interface GlobalIndex {
-	indices: {
-		[key: string]: {
-			entries: {
-				[key: string]: {
-					metadata: {
-						level: number;
-						parents: string[];
-						children?: string[];
-					};
-				};
-			};
-		};
+export interface IndexEntry {
+	metadata: {
+		level: number;
+		parents: string[];
+		children?: string[];
 	};
+}
+
+export interface Index {
+	nested: boolean;
+	level: number;
+	parents?: string[];
+	children?: string[];
+	entries: { [key: string]: IndexEntry };
+}
+
+export interface GlobalIndex {
+	indices: { [key: string]: Index };
 }
 
 export interface NoteConfig {
