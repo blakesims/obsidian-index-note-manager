@@ -49,6 +49,10 @@ export class ConfigManager {
 		);
 	}
 
+	getIndexConfig(indexName: string): any {
+		return this.data.indexConfig.indices[indexName] || {};
+	}
+
 	async getIndexEntries(
 		indexName: string,
 		parentEntry: string | null = null,

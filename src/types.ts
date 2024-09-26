@@ -69,6 +69,7 @@ export interface Answer {
 		indexed: boolean;
 		level: number | null;
 		parentAnswerId: string | null;
+		indexName?: string;
 	};
 }
 

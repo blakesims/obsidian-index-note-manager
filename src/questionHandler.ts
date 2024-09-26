@@ -249,27 +249,43 @@ export class QuestionHandler {
 		question: Question,
 		existingAnswers: Record<string, Answer>,
 	): Promise<Record<string, Answer>> {
-		const { nest } = question;
+		const { indexName: topLevelIndexName, nest } = question;
 		const nestedAnswers: Record<string, Answer> = {};
 
-		let parentAnswerId: string | null = null;
+		let currentIndexName = topLevelIndexName;
+		let parentAnswer: Answer | null = null;
 
-		if (!Array.isArray(nest)) {
-			throw new Error("nest is not an array");
-		}
-
-		for (let i = 0; i < nest.length; i++) {
-			const nestedQuestion = nest[i];
+		for (let level = 0; level < nest.length; level++) {
+			const nestedQuestion = nest[level];
 			if (!nestedQuestion || !nestedQuestion.answerId) {
-				throw new Error(`Invalid nested question at index ${i}`);
+				throw new Error(`Invalid nested question at level ${level}`);
 			}
 			const answerId = nestedQuestion.answerId;
 
+			// Determine the correct index for this level
+			if (level > 0) {
+				const parentIndexConfig =
+					this.configManager.getIndexConfig(currentIndexName);
+				currentIndexName =
+					parentIndexConfig.children?.[0] || currentIndexName;
+			}
+
+			// Fetch possible entries, filtered by parent if applicable
+			const possibleEntries = await this.getPossibleEntries(
+				currentIndexName,
+				parentAnswer?.value || null,
+			);
+
+			// Handle the question (either select from possibleEntries or create new)
 			const result = await this.handleTpsuggester(
-				nestedQuestion,
+				{
+					...nestedQuestion,
+					indexName: currentIndexName || "",
+					choices: possibleEntries,
+				},
 				existingAnswers,
-				i,
-				parentAnswerId,
+				level,
+				parentAnswer?.value || null,
 			);
 
 			nestedAnswers[answerId] = {
@@ -277,15 +293,33 @@ export class QuestionHandler {
 				metadata: {
 					...result.metadata,
 					questionType: "nestedTpsuggester",
-					level: i,
-					parentAnswerId: parentAnswerId,
+					indexed: true,
+					level: level,
+					parentAnswerId: parentAnswer?.value || null,
+					indexName: currentIndexName,
 				},
 			};
 
-			parentAnswerId = answerId;
+			parentAnswer = nestedAnswers[answerId];
 		}
 
 		return nestedAnswers;
+	}
+
+	private async getPossibleEntries(
+		indexName: string,
+		parentValue: string | null,
+	): Promise<string[]> {
+		const indexConfig = this.configManager.getIndexConfig(indexName);
+		const entries = indexConfig.entries || {};
+
+		if (parentValue) {
+			return Object.keys(entries).filter((entry) =>
+				entries[entry].metadata.parents?.includes(parentValue),
+			);
+		} else {
+			return Object.keys(entries);
+		}
 	}
 
 	private createAnswerObject(
