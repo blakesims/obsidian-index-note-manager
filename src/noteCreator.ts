@@ -125,7 +125,7 @@ export class NoteCreator {
 		newEntryName: string,
 		noteType: string,
 		noteSubtype: string,
-		answers: Record<string, Answer>,
+		existingAnswers: Record<string, Answer>,
 	): Promise<void> {
 		try {
 			const noteConfig = this.configManager.getNoteConfig();
@@ -141,13 +141,26 @@ export class NoteCreator {
 					`Invalid note type or subtype: ${noteType} - ${noteSubtype}`,
 				);
 			}
+			log(
+				"questionFlowDebug",
+				`Creating new entry note with existing answers: ${JSON.stringify(existingAnswers)}`,
+			);
 
 			const requiredAnswerIds = this.questionHandler.getRequiredAnswerIds(
 				subtypeConfig,
 				noteConfig,
 			);
 			const missingAnswerIds = requiredAnswerIds.filter(
-				(id) => !answers.hasOwnProperty(id),
+				(id) => !existingAnswers.hasOwnProperty(id),
+			);
+
+			log(
+				"questionFlowDebug",
+				`Required answer IDs: ${JSON.stringify(requiredAnswerIds)}`,
+			);
+			log(
+				"questionFlowDebug",
+				`Missing answer IDs: ${JSON.stringify(missingAnswerIds)}`,
 			);
 
 			// If there are missing answers, prompt for them
@@ -156,16 +169,20 @@ export class NoteCreator {
 					(q: Question) => q.answerId === missingId,
 				);
 				if (question) {
+					log(
+						"questionFlowDebug",
+						`Asking question for missing answer: ${missingId}`,
+					);
 					const answer = await this.questionHandler.askQuestion(
 						question,
-						answers,
+						existingAnswers,
 					);
-					Object.assign(answers, answer);
+					Object.assign(existingAnswers, answer);
 				}
 			}
 
 			// Ensure the new entry data is included in the answers
-			answers[noteSubtype.toLowerCase()] = {
+			existingAnswers[noteSubtype.toLowerCase()] = {
 				value: newEntryName,
 				type: "string",
 				metadata: {
@@ -180,7 +197,7 @@ export class NoteCreator {
 				await this.frontMatterGenerator.generateFrontMatter(
 					noteType,
 					noteSubtype,
-					answers,
+					existingAnswers,
 				);
 			log(
 				"frontMatterDebug",
@@ -191,7 +208,7 @@ export class NoteCreator {
 			await this.noteUtils.createNoteFromTemplate(
 				subtypeConfig,
 				frontMatter,
-				answers,
+				existingAnswers,
 			);
 		} catch (error) {
 			log("errorDebug", "Error in creating new entry note:", error);
@@ -200,7 +217,6 @@ export class NoteCreator {
 			);
 		}
 	}
-
 	private async selectNoteType(noteTypes: NoteType[]): Promise<NoteType> {
 		const typeNames = noteTypes.map((type) => type.id);
 		const selectedTypeName = await this.quickAddUtils.suggester(

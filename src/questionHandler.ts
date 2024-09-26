@@ -174,6 +174,15 @@ export class QuestionHandler {
 			newEntryNoteSubtype = "defaultNoteSubtype",
 		} = question;
 
+		// Check if we already have an answer for this question
+		if (existingAnswers[answerId]) {
+			log(
+				"questionFlowDebug",
+				`Using existing answer for ${answerId}: ${JSON.stringify(existingAnswers[answerId])}`,
+			);
+			return existingAnswers[answerId];
+		}
+
 		const replacedPrompt = this.placeholderUtils.replacePlaceholders(
 			prompt,
 			existingAnswers,
@@ -269,23 +278,23 @@ export class QuestionHandler {
 								"questionFlowDebug",
 								`Triggering new note creation for: ${newOption}`,
 							);
+							// Create a new answer object for the new entry
+							const newEntryAnswer = this.createAnswerObject(
+								newOption,
+								{
+									questionType: "tpsuggester",
+									indexed: true,
+									level: nestingLevel,
+									parentAnswerId: parentAnswerId,
+								},
+							);
+							// Add the new entry answer to the existing answers
+							existingAnswers[answerId] = newEntryAnswer;
 							await this.noteCreator.createNewEntryNote(
 								newOption,
 								newEntryNoteType,
 								newEntryNoteSubtype,
-								{
-									...existingAnswers,
-									[answerId]: {
-										value: newOption,
-										type: "string",
-										metadata: {
-											questionType: "tpsuggester",
-											indexed: true,
-											level: nestingLevel,
-											parentAnswerId: parentAnswerId,
-										},
-									},
-								},
+								existingAnswers,
 							);
 						}
 					}
@@ -303,12 +312,17 @@ export class QuestionHandler {
 			: selectedOptions[0];
 		log("questionFlowDebug", `Final answer for ${answerId}:`, finalAnswer);
 
-		return this.createAnswerObject(finalAnswer, {
+		const answerObject = this.createAnswerObject(finalAnswer, {
 			questionType: "tpsuggester",
 			indexed: !!indexName,
 			level: nestingLevel,
 			parentAnswerId: parentAnswerId,
 		});
+
+		// Store the answer in existingAnswers
+		existingAnswers[answerId] = answerObject;
+
+		return answerObject;
 	}
 
 	private async handleNestedTpsuggester(
@@ -328,6 +342,16 @@ export class QuestionHandler {
 			}
 			const answerId = nestedQuestion.answerId;
 
+			// Check if we already have an answer for this question
+			if (existingAnswers[answerId]) {
+				log(
+					"questionFlowDebug",
+					`Using existing answer for ${answerId}: ${JSON.stringify(existingAnswers[answerId])}`,
+				);
+				nestedAnswers[answerId] = existingAnswers[answerId];
+				parentAnswer = nestedAnswers[answerId];
+				continue;
+			}
 			// Determine the correct index for this level
 			if (level > 0) {
 				const parentIndexConfig =
