@@ -29,17 +29,22 @@ export class QuestionHandler {
 	async askQuestion(
 		question: Question,
 		existingAnswers: Record<string, Answer> = {},
-	): Promise<Answer> {
+	): Promise<Record<string, Answer>> {
 		log("questionFlowDebug", `Asking question: ${question.questionId}`);
 		try {
 			switch (question.type.toLowerCase()) {
 				case "inputprompt":
-					return await this.handleInputPrompt(question);
+					return {
+						[question.answerId]:
+							await this.handleInputPrompt(question),
+					};
 				case "tpsuggester":
-					return await this.handleTpsuggester(
-						question,
-						existingAnswers,
-					);
+					return {
+						[question.answerId]: await this.handleTpsuggester(
+							question,
+							existingAnswers,
+						),
+					};
 				case "nestedtpsuggester":
 					return await this.handleNestedTpsuggester(
 						question,
@@ -243,45 +248,44 @@ export class QuestionHandler {
 	private async handleNestedTpsuggester(
 		question: Question,
 		existingAnswers: Record<string, Answer>,
-	): Promise<Answer> {
-		const { indexName, nest } = question;
-		const answers = { ...existingAnswers };
+	): Promise<Record<string, Answer>> {
+		const { nest } = question;
+		const nestedAnswers: Record<string, Answer> = {};
+
+		let parentAnswerId: string | null = null;
 
 		if (!Array.isArray(nest)) {
 			throw new Error("nest is not an array");
 		}
 
-		let parentAnswerId: string | null = null;
-
 		for (let i = 0; i < nest.length; i++) {
 			const nestedQuestion = nest[i];
-			const nestedIndexName = nestedQuestion.answerId;
-
-			const tpsuggesterQuestion: Question = {
-				...nestedQuestion,
-				indexName: nestedIndexName,
-				answerId: nestedIndexName,
-				type: "tpsuggester",
-			};
+			if (!nestedQuestion || !nestedQuestion.answerId) {
+				throw new Error(`Invalid nested question at index ${i}`);
+			}
+			const answerId = nestedQuestion.answerId;
 
 			const result = await this.handleTpsuggester(
-				tpsuggesterQuestion,
-				answers,
-				i, // Pass the current nesting level
-				parentAnswerId, // Pass the parent answer ID
+				nestedQuestion,
+				existingAnswers,
+				i,
+				parentAnswerId,
 			);
-			answers[nestedIndexName] = result;
 
-			// Update parentAnswerId for the next iteration
-			parentAnswerId = nestedIndexName;
+			nestedAnswers[answerId] = {
+				...result,
+				metadata: {
+					...result.metadata,
+					questionType: "nestedTpsuggester",
+					level: i,
+					parentAnswerId: parentAnswerId,
+				},
+			};
+
+			parentAnswerId = answerId;
 		}
 
-		return this.createAnswerObject(answers, {
-			questionType: "nestedTpsuggester",
-			indexed: !!indexName,
-			level: nest.length - 1, // The level is the depth of the nest
-			parentAnswerId: null, // The nested structure itself doesn't have a parent
-		});
+		return nestedAnswers;
 	}
 
 	private createAnswerObject(

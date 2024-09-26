@@ -146,6 +146,7 @@ export class NoteCreator {
 			);
 
 			// If there are missing answers, prompt for them
+			// Inside createNewEntryNote method
 			for (const missingId of missingAnswerIds) {
 				const question = noteConfig.questions.find(
 					(q: Question) => q.answerId === missingId,
@@ -155,7 +156,7 @@ export class NoteCreator {
 						question,
 						answers,
 					);
-					answers[missingId] = answer;
+					Object.assign(answers, answer);
 				}
 			}
 
@@ -259,7 +260,7 @@ export class NoteCreator {
 					question,
 					allAnswers,
 				);
-				allAnswers[question.answerId] = answer;
+				Object.assign(allAnswers, answer);
 				log(
 					"answerStorageDebug",
 					`Stored answer for ${question.answerId}:`,
