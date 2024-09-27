@@ -1,11 +1,11 @@
-import { App, TFile, Notice, Plugin } from "obsidian";
+import { App, TFile, Notice } from "obsidian";
 import { ConfigManager } from "./configManager";
 import { QuestionHandler } from "./questionHandler";
 import { FrontMatterGenerator } from "./frontMatterGenerator";
 import { NoteUtils } from "./noteUtils";
 import { NoteConfig, NoteType, NoteSubtype, Answer, Question } from "./types";
 import { log } from "./debugUtils";
-import { QuickAddUtils } from "./quickAddUtils";
+import { ModalUtils } from "./modalUtils";
 
 export class NoteCreator {
 	private app: App;
@@ -13,7 +13,7 @@ export class NoteCreator {
 	private questionHandler: QuestionHandler;
 	private frontMatterGenerator: FrontMatterGenerator;
 	private noteUtils: NoteUtils;
-	private quickAddUtils: QuickAddUtils;
+	private modalUtils: ModalUtils;
 
 	constructor(app: App, configManager: ConfigManager) {
 		this.app = app;
@@ -24,7 +24,7 @@ export class NoteCreator {
 			configManager,
 		);
 		this.noteUtils = new NoteUtils(app);
-		this.quickAddUtils = new QuickAddUtils(app);
+		this.modalUtils = new ModalUtils(app);
 		this.questionHandler.setNoteCreator(this);
 	}
 
@@ -59,12 +59,6 @@ export class NoteCreator {
 				subtypeConfig,
 				noteConfig,
 			);
-
-			// Add a check to ensure requiredAnswerIds is an array
-			if (!Array.isArray(requiredAnswerIds)) {
-				throw new Error("Required answer IDs is not an array");
-			}
-
 			log(
 				"answerIdDebug",
 				"Required answerIds:",
@@ -75,15 +69,19 @@ export class NoteCreator {
 				subtypeConfig,
 				noteConfig,
 			);
+			if (allAnswers === null) {
+				log("generalDebug", "Note creation cancelled by user");
+				new Notice("Note creation cancelled");
+				return;
+			}
 			log(
 				"answerStorageDebug",
 				"Final answers:",
 				JSON.stringify(allAnswers, null, 2),
 			);
 
-			// Ensure all required answers are present
 			const missingAnswerIds = requiredAnswerIds.filter(
-				(id) => !allAnswers.hasOwnProperty(id),
+				(id: string) => !allAnswers.hasOwnProperty(id),
 			);
 			if (missingAnswerIds.length > 0) {
 				new Notice(
@@ -91,6 +89,7 @@ export class NoteCreator {
 				);
 				return;
 			}
+
 			const frontMatter =
 				await this.frontMatterGenerator.generateFrontMatter(
 					noteType.id,
@@ -177,6 +176,14 @@ export class NoteCreator {
 						question,
 						existingAnswers,
 					);
+					if (answer === null) {
+						log(
+							"generalDebug",
+							"New entry note creation cancelled by user",
+						);
+						new Notice("New entry note creation cancelled");
+						return;
+					}
 					Object.assign(existingAnswers, answer);
 				}
 			}
@@ -217,12 +224,39 @@ export class NoteCreator {
 			);
 		}
 	}
+
+	private async askQuestions(
+		subtypeConfig: NoteSubtype,
+		noteConfig: NoteConfig,
+	): Promise<Record<string, Answer> | null> {
+		const allAnswers: Record<string, Answer> = {};
+		for (const questionId of subtypeConfig.questions) {
+			const question = noteConfig.questions.find(
+				(q: Question) => q.questionId === questionId,
+			);
+			if (question) {
+				log(
+					"questionFlowDebug",
+					`Asking question: ${question.questionId}`,
+				);
+				const answer = await this.questionHandler.askQuestion(
+					question,
+					allAnswers,
+				);
+				if (answer === null) {
+					return null; // User cancelled
+				}
+				Object.assign(allAnswers, answer);
+			}
+		}
+		return allAnswers;
+	}
+
 	private async selectNoteType(noteTypes: NoteType[]): Promise<NoteType> {
 		const typeNames = noteTypes.map((type) => type.id);
-		const selectedTypeName = await this.quickAddUtils.suggester(
-			typeNames,
-			typeNames,
+		const selectedTypeName = await this.modalUtils.showModal(
 			"Select note type",
+			typeNames,
 		);
 		log("questionFlowDebug", `Selected note type: ${selectedTypeName}`);
 		return noteTypes.find(
@@ -232,10 +266,9 @@ export class NoteCreator {
 
 	private async selectNoteSubtype(noteType: NoteType): Promise<NoteSubtype> {
 		const subtypeNames = noteType.subtypes.map((subtype) => subtype.id);
-		const selectedSubtypeName = await this.quickAddUtils.suggester(
-			subtypeNames,
-			subtypeNames,
+		const selectedSubtypeName = await this.modalUtils.showModal(
 			"Select note subtype",
+			subtypeNames,
 		);
 		log(
 			"questionFlowDebug",
@@ -260,34 +293,5 @@ export class NoteCreator {
 			JSON.stringify(subtypeConfig, null, 2),
 		);
 		return subtypeConfig;
-	}
-
-	private async askQuestions(
-		subtypeConfig: NoteSubtype,
-		noteConfig: NoteConfig,
-	): Promise<Record<string, Answer>> {
-		const allAnswers: Record<string, Answer> = {};
-		for (const questionId of subtypeConfig.questions) {
-			const question = noteConfig.questions.find(
-				(q: Question) => q.questionId === questionId,
-			);
-			if (question) {
-				log(
-					"questionFlowDebug",
-					`Asking question: ${question.questionId}`,
-				);
-				const answer = await this.questionHandler.askQuestion(
-					question,
-					allAnswers,
-				);
-				Object.assign(allAnswers, answer);
-				log(
-					"answerStorageDebug",
-					`Stored answer for ${question.answerId}:`,
-					answer,
-				);
-			}
-		}
-		return allAnswers;
 	}
 }

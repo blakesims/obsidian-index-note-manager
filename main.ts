@@ -2,6 +2,7 @@ import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { NoteCreator } from "./src/noteCreator";
 import { ConfigManager } from "./src/configManager";
 import { NoteConfig } from "./src/types";
+import "./styles.css";
 
 export default class NoteCreatorPlugin extends Plugin {
 	configManager: ConfigManager;
@@ -10,7 +11,6 @@ export default class NoteCreatorPlugin extends Plugin {
 	async onload() {
 		this.configManager = new ConfigManager(this);
 		await this.configManager.loadData();
-
 		this.noteCreator = new NoteCreator(this.app, this.configManager);
 
 		// Add a ribbon icon
