@@ -6,6 +6,31 @@
 				"baseFrontMatterPath": "Templates/Homepage Base Front Matter.md",
 				"subtypes": [
 					{
+						"id": "Subject",
+						"folder": "Tutoring/Subjects/{{subject_name}}",
+						"template": "Templates/Subject Homepage Template - Body V0.1.md",
+						"frontMatter": [
+							{
+								"id": "tags",
+								"value": "homepage/subject",
+								"type": "string"
+							},
+							{
+								"id": "alias",
+								"value": "{{subject_name}}",
+								"type": "string"
+							},
+							{
+								"id": "active",
+								"value": "TRUE",
+								"type": "string"
+							}
+						],
+						"indexName": "subject",
+						"questions": ["subject_name_question"],
+						"title": "{{subject_name}} Homepage"
+					},
+					{
 						"id": "Student",
 						"folder": "Tutoring/Students/{{student_name}}",
 						"template": "Templates/Student Homepage Template - Body V5.1.md",
@@ -310,6 +335,18 @@
 							"level": 0,
 							"parents": []
 						}
+					},
+					"New-University-Student-Question": {
+						"metadata": {
+							"level": 0,
+							"parents": []
+						}
+					},
+					"University B": {
+						"metadata": {
+							"level": 0,
+							"parents": []
+						}
 					}
 				}
 			},
@@ -377,6 +414,24 @@
 							"level": 1,
 							"parents": ["UniversityB v14"]
 						}
+					},
+					"New Course - Student Question": {
+						"metadata": {
+							"level": 1,
+							"parents": ["New-University-Student-Question"]
+						}
+					},
+					"New Modal Course Uni A": {
+						"metadata": {
+							"level": 1,
+							"parents": ["universityA"]
+						}
+					},
+					"Intro to Courses": {
+						"metadata": {
+							"level": 1,
+							"parents": ["University B"]
+						}
 					}
 				}
 			},
@@ -404,7 +459,14 @@
 				"nested": true,
 				"level": 0,
 				"children": ["topic"],
-				"entries": {}
+				"entries": {
+					"New Subject Entry": {
+						"metadata": {
+							"level": 0,
+							"parents": []
+						}
+					}
+				}
 			},
 			"topic": {
 				"nested": true,
@@ -415,4 +477,3 @@
 		}
 	}
 }
-
