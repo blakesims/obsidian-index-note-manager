@@ -1,0 +1,91 @@
+{
+	"noteConfig": {
+		"noteTypes": [
+			{
+				"id": "ExampleNoteType",
+				"baseFrontMatterPath": "Path/To/Base/FrontMatter.md",
+				"subtypes": [
+					{
+						"id": "ExampleSubtype",
+						"folder": "Path/To/Folder",
+						"template": "Path/To/Template.md",
+						"frontMatter": [
+							{
+								"id": "exampleField",
+								"value": "{{placeholder}}",
+								"type": "string"
+							}
+						],
+						"questions": ["question1_id", "question2_id"],
+						"title": "{{placeholder}} Title"
+					}
+				]
+			}
+		],
+		"questions": [
+			{
+				"questionId": "question1_id",
+				"answerId": "answer1",
+				"type": "inputPrompt",
+				"prompt": "Enter something:"
+			},
+			{
+				"questionId": "question2_id",
+				"answerId": "answer2",
+				"type": "tpsuggester",
+				"prompt": "Select something:",
+				"indexName": "exampleIndex",
+				"allowManualEntry": true,
+				"createNewEntry": true,
+				"newEntryNoteType": "ExampleNoteType",
+				"newEntryNoteSubtype": "ExampleSubtype",
+				"multipleSelections": false
+			},
+			{
+				"questionId": "question3_id",
+				"type": "nestedTpsuggester",
+				"indexName": "parentIndex",
+				"nest": [
+					{
+						"questionId": "nestedQuestion1_id",
+						"answerId": "nestedAnswer1",
+						"prompt": "Select parent:",
+						"allowManualEntry": true,
+						"createNewEntry": true,
+						"newEntryNoteType": "ParentNoteType",
+						"newEntryNoteSubtype": "ParentSubtype"
+					},
+					{
+						"questionId": "nestedQuestion2_id",
+						"answerId": "nestedAnswer2",
+						"prompt": "Select child:",
+						"allowManualEntry": true,
+						"createNewEntry": true,
+						"newEntryNoteType": "ChildNoteType",
+						"newEntryNoteSubtype": "ChildSubtype"
+					}
+				]
+			}
+		]
+	},
+	"indexConfig": {
+		"indices": {
+			"exampleIndex": {
+				"nested": false,
+				"entries": {}
+			},
+			"parentIndex": {
+				"nested": true,
+				"level": 0,
+				"children": ["childIndex"],
+				"entries": {}
+			},
+			"childIndex": {
+				"nested": true,
+				"level": 1,
+				"parents": ["parentIndex"],
+				"entries": {}
+			}
+		}
+	}
+}
