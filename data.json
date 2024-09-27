@@ -8,7 +8,7 @@
 					{
 						"id": "Subject",
 						"folder": "Tutoring/Subjects/{{subject_name}}",
-						"template": "Templates/Subject Homepage Template - Body V0.1.md",
+						"template": "Templates/Subject Homepage Template - Body v0.1.md",
 						"frontMatter": [
 							{
 								"id": "tags",
@@ -73,7 +73,7 @@
 					{
 						"id": "University",
 						"folder": "Tutoring/Universities/{{university}}",
-						"template": "Templates/University Homepage Template.md",
+						"template": "Templates/University Homepage Template - Body v0.1.md",
 						"indexName": "university_courses_index.json",
 						"questions": ["university_name_question"],
 						"frontMatter": [
@@ -93,7 +93,7 @@
 					{
 						"id": "Course",
 						"folder": "Tutoring/Universities/{{university}}",
-						"template": "Templates/Course Homepage Template.md",
+						"template": "Templates/Course Homepage Template - Body v0.1.md",
 						"indexName": "course",
 						"questions": ["university_course_for_course_homepage"],
 						"frontMatter": [
@@ -143,7 +143,7 @@
 				"subtypes": [
 					{
 						"id": "Tutoring Note",
-						"template": "Templates/New Student Note Template.md",
+						"template": "Templates/New Student Note Template - Body v0.1.md",
 						"questions": ["author_question", "subject_topic_note"],
 						"frontMatter": [
 							{
@@ -320,6 +320,13 @@
 				"allowManualEntry": true,
 				"createNewEntry": false,
 				"multipleSelections": false
+			},
+			{
+				"questionId": "subject_name_question",
+				"answerId": "subject_name",
+				"type": "inputPrompt",
+				"prompt": "Enter the name of the subject:",
+				"frontMatterType": "link"
 			}
 		]
 	},
@@ -336,13 +343,7 @@
 							"parents": []
 						}
 					},
-					"New-University-Student-Question": {
-						"metadata": {
-							"level": 0,
-							"parents": []
-						}
-					},
-					"University B": {
+					"universityB": {
 						"metadata": {
 							"level": 0,
 							"parents": []
@@ -355,89 +356,36 @@
 				"level": 1,
 				"parents": ["university"],
 				"entries": {
-					"NewCourseAUniA": {
-						"metadata": {
-							"level": 1,
-							"parents": []
-						}
-					},
-					"CourseAUniA2": {
-						"metadata": {
-							"level": 1,
-							"parents": []
-						}
-					},
-					"NewCourseV7UniA": {
+					"courseA": {
 						"metadata": {
 							"level": 1,
 							"parents": ["universityA"]
 						}
 					},
-					"New Course Uni A v9": {
+					"courseB": {
 						"metadata": {
 							"level": 1,
-							"parents": ["universityA"]
-						}
-					},
-					"New Course UniA v10": {
-						"metadata": {
-							"level": 1,
-							"parents": ["universityA"]
-						}
-					},
-					"TestingNewAnswerv11-Course": {
-						"metadata": {
-							"level": 1,
-							"parents": ["universityA"]
-						}
-					},
-					"TestingNewAnswerv12-new-course-entry": {
-						"metadata": {
-							"level": 1,
-							"parents": ["universityA"]
-						}
-					},
-					"TestingNewAnswerv13-new-course": {
-						"metadata": {
-							"level": 1,
-							"parents": ["universityA"]
-						}
-					},
-					"New Course for New University B": {
-						"metadata": {
-							"level": 1,
-							"parents": ["UniversityB v14"]
-						}
-					},
-					"New Course Entry for Student Question": {
-						"metadata": {
-							"level": 1,
-							"parents": ["UniversityB v14"]
-						}
-					},
-					"New Course - Student Question": {
-						"metadata": {
-							"level": 1,
-							"parents": ["New-University-Student-Question"]
-						}
-					},
-					"New Modal Course Uni A": {
-						"metadata": {
-							"level": 1,
-							"parents": ["universityA"]
-						}
-					},
-					"Intro to Courses": {
-						"metadata": {
-							"level": 1,
-							"parents": ["University B"]
+							"parents": ["universityB"]
 						}
 					}
 				}
 			},
 			"student": {
 				"nested": false,
-				"entries": {}
+				"entries": {
+					"studentA": {
+						"metadata": {
+							"level": 0,
+							"parents": []
+						}
+					},
+					"studentB": {
+						"metadata": {
+							"level": 0,
+							"parents": []
+						}
+					}
+				}
 			},
 			"tutor": {
 				"nested": false,
@@ -448,8 +396,9 @@
 							"parents": []
 						}
 					},
-					"TutorNewA": {
+					"TutorB": {
 						"metadata": {
+							"level": 0,
 							"parents": []
 						}
 					}
@@ -460,7 +409,13 @@
 				"level": 0,
 				"children": ["topic"],
 				"entries": {
-					"New Subject Entry": {
+					"subjectA": {
+						"metadata": {
+							"level": 0,
+							"parents": []
+						}
+					},
+					"subjectB": {
 						"metadata": {
 							"level": 0,
 							"parents": []
@@ -472,7 +427,20 @@
 				"nested": true,
 				"level": 1,
 				"parents": ["subject"],
-				"entries": {}
+				"entries": {
+					"topicA": {
+						"metadata": {
+							"level": 1,
+							"parents": ["subjectA"]
+						}
+					},
+					"topicB": {
+						"metadata": {
+							"level": 1,
+							"parents": ["subjectB"]
+						}
+					}
+				}
 			}
 		}
 	}
