@@ -138,29 +138,39 @@ export class QuestionHandler {
 			`Handling tpsuggester for question: ${question.questionId}, answerId: ${answerId}, nestingLevel: ${nestingLevel}, parentAnswerId: ${parentAnswerId}`,
 		);
 		let choices: string[] = [];
-		let indexData: Record<string, IndexEntry> = {};
 
 		if (indexName) {
 			log(
 				"questionFlowDebug",
 				`Fetching index entries for ${indexName}, parent: ${parentAnswerId}`,
 			);
-			indexData = await this.getIndexEntries(indexName, parentAnswerId);
+			const indexEntries = await this.getIndexEntries(
+				indexName,
+				parentAnswerId,
+			);
 			log(
 				"questionFlowDebug",
-				"Received indexData:",
-				JSON.stringify(indexData, null, 2),
+				"Received indexEntries:",
+				JSON.stringify(indexEntries, null, 2),
 			);
 
-			if (!indexData || typeof indexData !== "object") {
+			if (Array.isArray(indexEntries)) {
+				// If indexEntries is an array (child entries), use it directly
+				choices = indexEntries;
+			} else if (
+				typeof indexEntries === "object" &&
+				indexEntries !== null
+			) {
+				// If indexEntries is an object (top-level entries), use its keys
+				choices = Object.keys(indexEntries);
+			} else {
 				log(
 					"questionFlowDebug",
 					`Invalid or empty index: ${indexName}`,
 				);
-				indexData = {};
+				choices = [];
 			}
 
-			choices = Object.keys(indexData);
 			log("questionFlowDebug", "Choices after filtering:", choices);
 		} else if (question.choices) {
 			choices = question.choices;
@@ -209,14 +219,25 @@ export class QuestionHandler {
 					continueSelecting = false;
 				}
 				if (indexName) {
-					await this.updateIndexEntries(indexName, {
-						[newOption]: {
-							metadata: {
-								level: nestingLevel,
-								parents: parentAnswerId ? [parentAnswerId] : [],
-							},
+					const newEntryData: IndexEntry = {
+						metadata: {
+							level: nestingLevel,
+							parents: parentAnswerId ? [parentAnswerId] : [],
 						},
-					});
+					};
+
+					if (nestingLevel === 0) {
+						newEntryData.children = {};
+					}
+
+					await this.updateIndexEntries(
+						indexName,
+						{
+							[newOption]: newEntryData,
+						},
+						parentAnswerId,
+					);
+
 					log(
 						"questionFlowDebug",
 						`New entry saved to index: ${newOption}`,
@@ -282,36 +303,19 @@ export class QuestionHandler {
 
 		for (let level = 0; level < nest.length; level++) {
 			const nestedQuestion = nest[level];
-			if (!nestedQuestion || !nestedQuestion.answerId) {
-				throw new Error(`Invalid nested question at level ${level}`);
-			}
 			const answerId = nestedQuestion.answerId;
 
-			// Check if we already have an answer for this question
 			if (existingAnswers[answerId]) {
-				log(
-					"questionFlowDebug",
-					`Using existing answer for ${answerId}: ${JSON.stringify(existingAnswers[answerId])}`,
-				);
 				nestedAnswers[answerId] = existingAnswers[answerId];
 				parentAnswer = nestedAnswers[answerId];
 				continue;
 			}
-			// Determine the correct index for this level
-			if (level > 0) {
-				const parentIndexConfig =
-					this.configManager.getIndexConfig(currentIndexName);
-				currentIndexName =
-					parentIndexConfig?.children?.[0] || currentIndexName;
-			}
 
-			// Fetch possible entries, filtered by parent if applicable
 			const possibleEntries = await this.getPossibleEntries(
 				currentIndexName,
 				parentAnswer?.value || null,
 			);
 
-			// Handle the question (either select from possibleEntries or create new)
 			const result = await this.handleTpsuggester(
 				{
 					...nestedQuestion,
@@ -324,7 +328,6 @@ export class QuestionHandler {
 			);
 
 			if (result === null) {
-				log("questionFlowDebug", "User cancelled nested question");
 				return null;
 			}
 
@@ -341,31 +344,21 @@ export class QuestionHandler {
 			};
 
 			parentAnswer = nestedAnswers[answerId];
+
+			if (level < nest.length - 1) {
+				const nextIndex =
+					this.configManager.getIndexConfig(currentIndexName);
+				currentIndexName = nextIndex.children[0];
+			}
 		}
 
 		return nestedAnswers;
 	}
 
-	private async getPossibleEntries(
-		indexName: string,
-		parentValue: string | null,
-	): Promise<string[]> {
-		const indexConfig = this.configManager.getIndexConfig(indexName);
-		const entries = indexConfig?.entries || {};
-
-		if (parentValue) {
-			return Object.keys(entries).filter((entry) =>
-				entries[entry].metadata.parents?.includes(parentValue),
-			);
-		} else {
-			return Object.keys(entries);
-		}
-	}
-
 	private async getIndexEntries(
 		indexName: string,
 		parentEntry: string | null = null,
-	): Promise<Record<string, IndexEntry>> {
+	): Promise<Record<string, IndexEntry> | string[]> {
 		try {
 			return await this.configManager.getIndexEntries(
 				indexName,
@@ -377,16 +370,68 @@ export class QuestionHandler {
 		}
 	}
 
-	private async updateIndexEntries(
+	async updateIndexEntries(
 		indexName: string,
 		newEntries: Record<string, IndexEntry>,
+		parentEntry: string | null = null,
 	): Promise<void> {
-		try {
-			await this.configManager.updateIndexEntries(indexName, newEntries);
-		} catch (error) {
-			log("errorDebug", `Error updating index entries: ${error.message}`);
-			throw error;
+		const index = this.data.indexConfig.indices[indexName];
+		if (!index) {
+			throw new Error(`Index ${indexName} not found`);
 		}
+
+		if (parentEntry) {
+			const parentIndex = this.data.indexConfig.indices[index.parents[0]];
+			const parentEntryData = parentIndex.entries[parentEntry];
+
+			if (!parentEntryData.children) {
+				parentEntryData.children = {};
+			}
+			if (!parentEntryData.children[indexName]) {
+				parentEntryData.children[indexName] = [];
+			}
+
+			for (const [entryName, entryData] of Object.entries(newEntries)) {
+				if (!parentEntryData.children[indexName].includes(entryName)) {
+					parentEntryData.children[indexName].push(entryName);
+				}
+				index.entries[entryName] = {
+					metadata: {
+						level: index.level,
+						parents: [parentEntry],
+					},
+					...entryData,
+				};
+			}
+		} else {
+			for (const [entryName, entryData] of Object.entries(newEntries)) {
+				index.entries[entryName] = {
+					metadata: {
+						level: index.level,
+						parents: [],
+					},
+					children: {},
+					...entryData,
+				};
+			}
+		}
+
+		await this.saveData();
+	}
+
+	private async getPossibleEntries(
+		indexName: string,
+		parentValue: string | null,
+	): Promise<string[]> {
+		const indexEntries = await this.getIndexEntries(indexName, parentValue);
+
+		if (Array.isArray(indexEntries)) {
+			return indexEntries;
+		} else if (typeof indexEntries === "object" && indexEntries !== null) {
+			return Object.keys(indexEntries);
+		}
+
+		return [];
 	}
 
 	public getRequiredAnswerIds(

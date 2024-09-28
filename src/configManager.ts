@@ -4,7 +4,7 @@ import { log } from "./debugUtils";
 
 interface PluginData {
 	noteConfig: NoteConfig;
-	indexConfig: GlobalIndex; // Updated to match the structure of data.json
+	indexConfig: GlobalIndex;
 }
 
 export class ConfigManager {
@@ -15,7 +15,7 @@ export class ConfigManager {
 		this.plugin = plugin;
 		this.data = {
 			noteConfig: { noteTypes: [], questions: [] },
-			indexConfig: { indices: {} }, // Updated to match the structure of data.json
+			indexConfig: { indices: {} },
 		};
 	}
 
@@ -50,35 +50,34 @@ export class ConfigManager {
 	}
 
 	getIndexConfig(indexName: string): any {
-		return this.data.indexConfig.indices[indexName] || {};
+		const index = this.data.indexConfig.indices[indexName];
+		if (!index) {
+			throw new Error(`Index ${indexName} not found`);
+		}
+		return index;
 	}
 
 	async getIndexEntries(
 		indexName: string,
 		parentEntry: string | null = null,
 	): Promise<Record<string, any>> {
-		const entries = this.data.indexConfig.indices[indexName]?.entries || {};
-		log(
-			"generalDebug",
-			`Getting index entries for ${indexName}, parent: ${parentEntry}`,
-		);
-		log("generalDebug", "All entries:", JSON.stringify(entries, null, 2));
+		const index = this.getIndexConfig(indexName);
 
 		if (parentEntry) {
-			const filteredEntries = Object.fromEntries(
-				Object.entries(entries).filter(([_, entry]) =>
-					(entry as any).metadata.parents?.includes(parentEntry),
-				),
-			);
-			log(
-				"generalDebug",
-				"Filtered entries:",
-				JSON.stringify(filteredEntries, null, 2),
-			);
-			return filteredEntries;
+			if (!index.parents || index.parents.length === 0) {
+				throw new Error(`Index ${indexName} has no parent defined`);
+			}
+			const parentIndex = this.getIndexConfig(index.parents[0]);
+			const parentEntryData = parentIndex.entries[parentEntry];
+			if (!parentEntryData) {
+				throw new Error(
+					`Parent entry ${parentEntry} not found in index ${index.parents[0]}`,
+				);
+			}
+			return parentEntryData.children?.[indexName] || {};
 		}
 
-		return entries;
+		return index.entries;
 	}
 
 	async updateIndexEntries(
@@ -86,49 +85,49 @@ export class ConfigManager {
 		newEntries: Record<string, IndexEntry>,
 		parentEntry: string | null = null,
 	): Promise<void> {
-		if (!this.data.indexConfig.indices[indexName]) {
-			this.data.indexConfig.indices[indexName] = {
-				nested: false,
-				level: 0,
-				entries: {},
-			};
-		}
+		const index = this.getIndexConfig(indexName);
 
-		const indexConfig = this.data.indexConfig.indices[indexName];
-
-		for (const [entryName, entryData] of Object.entries(newEntries)) {
-			// Set the correct level based on the index configuration
-			entryData.metadata.level = indexConfig.level;
-
-			// Set the parent if provided
-			if (parentEntry) {
-				entryData.metadata.parents = [parentEntry];
+		if (parentEntry) {
+			if (!index.parents || index.parents.length === 0) {
+				throw new Error(`Index ${indexName} has no parent defined`);
+			}
+			const parentIndex = this.getIndexConfig(index.parents[0]);
+			const parentEntryData = parentIndex.entries[parentEntry];
+			if (!parentEntryData) {
+				throw new Error(
+					`Parent entry ${parentEntry} not found in index ${index.parents[0]}`,
+				);
 			}
 
-			this.data.indexConfig.indices[indexName].entries[entryName] =
-				entryData;
+			parentEntryData.children = parentEntryData.children || {};
+			parentEntryData.children[indexName] =
+				parentEntryData.children[indexName] || [];
 
-			// Update parent entries if this is a nested entry
-			if (parentEntry) {
-				const parentIndexName = indexConfig.parents?.[0] || indexName;
-				const parentEntryData =
-					this.data.indexConfig.indices[parentIndexName]?.entries[
-						parentEntry
-					];
-				if (parentEntryData) {
-					if (!parentEntryData.metadata.children) {
-						parentEntryData.metadata.children = [];
-					}
-					if (
-						!parentEntryData.metadata.children.includes(entryName)
-					) {
-						parentEntryData.metadata.children.push(entryName);
-					}
+			for (const [entryName, entryData] of Object.entries(newEntries)) {
+				if (!parentEntryData.children[indexName].includes(entryName)) {
+					parentEntryData.children[indexName].push(entryName);
 				}
+				index.entries[entryName] = {
+					metadata: {
+						level: index.level,
+						parents: [parentEntry],
+					},
+					...entryData,
+				};
+			}
+		} else {
+			for (const [entryName, entryData] of Object.entries(newEntries)) {
+				index.entries[entryName] = {
+					metadata: {
+						level: index.level,
+					},
+					...entryData,
+				};
 			}
 		}
 
 		await this.saveData();
+
 		log(
 			"generalDebug",
 			"Updated index entries for",
