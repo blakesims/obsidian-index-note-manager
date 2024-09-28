@@ -339,14 +339,18 @@
 				"entries": {
 					"universityA": {
 						"metadata": {
-							"level": 0,
-							"parents": []
+							"level": 0
+						},
+						"children": {
+							"course": ["courseA"]
 						}
 					},
 					"universityB": {
 						"metadata": {
-							"level": 0,
-							"parents": []
+							"level": 0
+						},
+						"children": {
+							"course": ["courseB"]
 						}
 					}
 				}
@@ -372,34 +376,32 @@
 			},
 			"student": {
 				"nested": false,
+				"level": 0,
 				"entries": {
 					"studentA": {
 						"metadata": {
-							"level": 0,
-							"parents": []
+							"level": 0
 						}
 					},
 					"studentB": {
 						"metadata": {
-							"level": 0,
-							"parents": []
+							"level": 0
 						}
 					}
 				}
 			},
 			"tutor": {
 				"nested": false,
+				"level": 0,
 				"entries": {
 					"TutorA": {
 						"metadata": {
-							"level": 0,
-							"parents": []
+							"level": 0
 						}
 					},
 					"TutorB": {
 						"metadata": {
-							"level": 0,
-							"parents": []
+							"level": 0
 						}
 					}
 				}
@@ -411,14 +413,18 @@
 				"entries": {
 					"subjectA": {
 						"metadata": {
-							"level": 0,
-							"parents": []
+							"level": 0
+						},
+						"children": {
+							"topic": ["topicA"]
 						}
 					},
 					"subjectB": {
 						"metadata": {
-							"level": 0,
-							"parents": []
+							"level": 0
+						},
+						"children": {
+							"topic": ["topicB"]
 						}
 					}
 				}
