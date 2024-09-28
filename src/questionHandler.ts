@@ -375,48 +375,16 @@ export class QuestionHandler {
 		newEntries: Record<string, IndexEntry>,
 		parentEntry: string | null = null,
 	): Promise<void> {
-		const index = this.data.indexConfig.indices[indexName];
-		if (!index) {
-			throw new Error(`Index ${indexName} not found`);
+		try {
+			await this.configManager.updateIndexEntries(
+				indexName,
+				newEntries,
+				parentEntry,
+			);
+		} catch (error) {
+			log("errorDebug", `Error updating index entries: ${error.message}`);
+			throw error;
 		}
-
-		if (parentEntry) {
-			const parentIndex = this.data.indexConfig.indices[index.parents[0]];
-			const parentEntryData = parentIndex.entries[parentEntry];
-
-			if (!parentEntryData.children) {
-				parentEntryData.children = {};
-			}
-			if (!parentEntryData.children[indexName]) {
-				parentEntryData.children[indexName] = [];
-			}
-
-			for (const [entryName, entryData] of Object.entries(newEntries)) {
-				if (!parentEntryData.children[indexName].includes(entryName)) {
-					parentEntryData.children[indexName].push(entryName);
-				}
-				index.entries[entryName] = {
-					metadata: {
-						level: index.level,
-						parents: [parentEntry],
-					},
-					...entryData,
-				};
-			}
-		} else {
-			for (const [entryName, entryData] of Object.entries(newEntries)) {
-				index.entries[entryName] = {
-					metadata: {
-						level: index.level,
-						parents: [],
-					},
-					children: {},
-					...entryData,
-				};
-			}
-		}
-
-		await this.saveData();
 	}
 
 	private async getPossibleEntries(

@@ -2,8 +2,8 @@ export interface IndexEntry {
 	metadata: {
 		level: number;
 		parents: string[];
-		children?: string[];
 	};
+	children?: Record<string, string[]>;
 }
 
 export interface Index {

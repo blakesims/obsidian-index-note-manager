@@ -60,9 +60,8 @@ export class ConfigManager {
 	async getIndexEntries(
 		indexName: string,
 		parentEntry: string | null = null,
-	): Promise<Record<string, any>> {
+	): Promise<Record<string, IndexEntry> | string[]> {
 		const index = this.getIndexConfig(indexName);
-
 		if (parentEntry) {
 			if (!index.parents || index.parents.length === 0) {
 				throw new Error(`Index ${indexName} has no parent defined`);
@@ -74,9 +73,8 @@ export class ConfigManager {
 					`Parent entry ${parentEntry} not found in index ${index.parents[0]}`,
 				);
 			}
-			return parentEntryData.children?.[indexName] || {};
+			return parentEntryData.children?.[indexName] || [];
 		}
-
 		return index.entries;
 	}
 
@@ -86,7 +84,6 @@ export class ConfigManager {
 		parentEntry: string | null = null,
 	): Promise<void> {
 		const index = this.getIndexConfig(indexName);
-
 		if (parentEntry) {
 			if (!index.parents || index.parents.length === 0) {
 				throw new Error(`Index ${indexName} has no parent defined`);
@@ -98,36 +95,36 @@ export class ConfigManager {
 					`Parent entry ${parentEntry} not found in index ${index.parents[0]}`,
 				);
 			}
-
 			parentEntryData.children = parentEntryData.children || {};
 			parentEntryData.children[indexName] =
 				parentEntryData.children[indexName] || [];
-
 			for (const [entryName, entryData] of Object.entries(newEntries)) {
 				if (!parentEntryData.children[indexName].includes(entryName)) {
 					parentEntryData.children[indexName].push(entryName);
 				}
 				index.entries[entryName] = {
+					...entryData,
 					metadata: {
+						...entryData.metadata,
 						level: index.level,
 						parents: [parentEntry],
 					},
-					...entryData,
 				};
 			}
 		} else {
 			for (const [entryName, entryData] of Object.entries(newEntries)) {
 				index.entries[entryName] = {
-					metadata: {
-						level: index.level,
-					},
 					...entryData,
+					metadata: {
+						...entryData.metadata,
+						level: index.level,
+						parents: [],
+					},
+					children: {},
 				};
 			}
 		}
-
 		await this.saveData();
-
 		log(
 			"generalDebug",
 			"Updated index entries for",
