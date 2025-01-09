@@ -144,6 +144,19 @@ export class FrontMatterGenerator {
 			JSON.stringify(allAnswers, null, 2),
 		);
 
+		// First check if we have a direct answer that matches the field id
+		const directAnswer = allAnswers[id];
+		if (directAnswer) {
+			const answerObj = { value: directAnswer.value, type };
+			const formattedAnswer = this.formatAnswer(
+				answerObj,
+				type,
+				Array.isArray(directAnswer.value),
+			);
+			return `${id}: ${formattedAnswer}`;
+		}
+
+		// If no direct answer, try placeholder replacement
 		let replacedValue = this.placeholderUtils.replacePlaceholders(
 			value,
 			allAnswers,
@@ -155,29 +168,45 @@ export class FrontMatterGenerator {
 			const placeholderMatch = replacedValue.match(/{{([^}]+)}}/);
 			if (placeholderMatch) {
 				const placeholderKey = placeholderMatch[1].trim();
-				if (allAnswers[placeholderKey]) {
-					replacedValue =
-						allAnswers[placeholderKey].value ||
-						allAnswers[placeholderKey];
-					log(
-						"frontMatterDebug",
-						`Replaced from allAnswers: ${replacedValue}`,
+				const answer = allAnswers[placeholderKey];
+				if (answer) {
+					const answerObj = { value: answer.value, type };
+					const formattedAnswer = this.formatAnswer(
+						answerObj,
+						type,
+						Array.isArray(answer.value),
 					);
-				} else {
-					log(
-						"frontMatterDebug",
-						`No value found in allAnswers for key: ${placeholderKey}`,
-					);
-					return null;
+					log("frontMatterDebug", `Formatted answer for ${id}:`, formattedAnswer);
+					return `${id}: ${formattedAnswer}`;
 				}
 			}
+			return null;
+		}
+
+		// Try to parse the replacedValue if it looks like a JSON array
+		try {
+			if (replacedValue.startsWith("[") && replacedValue.endsWith("]")) {
+				const parsedValue = JSON.parse(replacedValue);
+				if (Array.isArray(parsedValue)) {
+					log("frontMatterDebug", "Parsed JSON array:", parsedValue);
+					const answerObj = { value: parsedValue, type };
+					const formattedAnswer = this.formatAnswer(
+						answerObj,
+						type,
+						true,
+					);
+					return `${id}: ${formattedAnswer}`;
+				}
+			}
+		} catch (e) {
+			log("errorDebug", "Error parsing JSON array:", e);
 		}
 
 		const answerObj = { value: replacedValue, type };
 		const formattedAnswer = this.formatAnswer(
 			answerObj,
 			type,
-			Array.isArray(answerObj.value),
+			false,
 		);
 		log("frontMatterDebug", `Formatted answer for ${id}:`, formattedAnswer);
 

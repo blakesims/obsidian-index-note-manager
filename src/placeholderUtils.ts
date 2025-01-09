@@ -1,4 +1,5 @@
 import { Answer } from "./types";
+import { log } from "./debugUtils";
 
 export class PlaceholderUtils {
 	replacePlaceholders(
@@ -8,22 +9,45 @@ export class PlaceholderUtils {
 	): string {
 		if (!str || !answers) return str;
 
+		log("generalDebug", "Starting replacePlaceholders with:", {
+			str,
+			allowArrays,
+		});
+
 		return str.replace(/{{([^}]+)}}/g, (match, placeholder) => {
 			const answerKey = placeholder.trim();
 			const answer = answers[answerKey];
 
+			log("generalDebug", `Processing placeholder: ${answerKey}`, {
+				answer: JSON.stringify(answer, null, 2),
+			});
+
 			if (answer !== undefined) {
 				const value = answer.value;
+				log("generalDebug", `Raw value type: ${typeof value}, isArray: ${Array.isArray(value)}`, {
+					value: JSON.stringify(value, null, 2),
+				});
+
 				if (allowArrays && Array.isArray(value)) {
-					return value.join(", ");
-				} else if (typeof value === "object" && value !== null) {
+					const result = value.join(", ");
+					log("generalDebug", "Array joined result:", result);
+					return result;
+				} else if (Array.isArray(value)) {
+					// If it's an array but allowArrays is false, preserve array structure
+					log("generalDebug", "Preserving array structure");
 					return JSON.stringify(value);
+				} else if (typeof value === "object" && value !== null) {
+					const result = JSON.stringify(value);
+					log("generalDebug", "Stringified object:", result);
+					return result;
 				} else {
-					return String(value);
+					const result = String(value);
+					log("generalDebug", "String value:", result);
+					return result;
 				}
 			}
 
-			// Return the original placeholder if no replacement found
+			log("generalDebug", "No replacement found, returning original:", match);
 			return match;
 		});
 	}
