@@ -63,7 +63,7 @@ class NewIndexEntryModal extends Modal {
 						return;
 					}
 
-					if (this.index.parents?.length > 0 && !this.parentEntry) {
+					if (this.index.parents && this.index.parents.length > 0 && !this.parentEntry) {
 						new Notice('Parent entry is required');
 						return;
 					}
@@ -733,6 +733,169 @@ class IndexEntriesCanvasModal extends Modal {
 	}
 }
 
+class NewIndexModal extends Modal {
+	private plugin: IndexNoteManagerPlugin;
+	private indexId: string = '';
+	private isNested: boolean = false;
+	private level: number = 0;
+	private parentIndex: string | null = null;
+	private dynamicFieldsContainer: HTMLElement;
+
+	constructor(app: App, plugin: IndexNoteManagerPlugin) {
+		super(app);
+		this.plugin = plugin;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: 'Create New Index' });
+
+		// Index ID
+		new Setting(contentEl)
+			.setName('Index ID')
+			.setDesc('Enter the ID for the new index')
+			.addText(text => text
+				.setPlaceholder('Index ID')
+				.onChange(value => this.indexId = value.trim()));
+
+		// Is Nested
+		new Setting(contentEl)
+			.setName('Nested Index')
+			.setDesc('Is this a nested index?')
+			.addToggle(toggle => toggle
+				.setValue(this.isNested)
+				.onChange(value => {
+					this.isNested = value;
+					this.refreshDynamicFields();
+				}));
+
+		// Container for dynamic fields
+		this.dynamicFieldsContainer = contentEl.createEl('div');
+		this.refreshDynamicFields();
+
+		// Save button
+		new Setting(contentEl)
+			.addButton(btn => btn
+				.setButtonText('Create Index')
+				.setCta()
+				.onClick(async () => {
+					if (!this.validateFields()) {
+						return;
+					}
+
+					try {
+						const newIndex: Index = {
+							nested: this.isNested,
+							level: this.level,
+							entries: {},
+							parents: this.level === 1 ? [this.parentIndex!] : undefined,
+							children: this.level === 0 ? [] : undefined
+						};
+
+						await this.plugin.configManager.addIndex(this.indexId, newIndex);
+						
+						// If this is a level 1 index, update the parent's children array
+						if (this.level === 1 && this.parentIndex) {
+							const parentIndex = this.plugin.configManager.getIndexConfig(this.parentIndex);
+							if (!parentIndex.children) {
+								parentIndex.children = [];
+							}
+							if (!parentIndex.children.includes(this.indexId)) {
+								parentIndex.children.push(this.indexId);
+								// Update the parent index in the config
+								this.plugin.configManager.updateParentIndex(this.parentIndex, parentIndex);
+							}
+						}
+
+						new Notice(`Created new index "${this.indexId}"`);
+						this.close();
+					} catch (error) {
+						new Notice(`Failed to create index: ${error.message}`);
+						console.error('Failed to create index:', error);
+					}
+				}));
+	}
+
+	private refreshDynamicFields() {
+		this.dynamicFieldsContainer.empty();
+
+		if (this.isNested) {
+			// Show level selection only for nested indices
+			new Setting(this.dynamicFieldsContainer)
+				.setName('Level')
+				.setDesc('Index level (0 for root indices, 1 for child indices)')
+				.addDropdown(dropdown => dropdown
+					.addOption('0', 'Level 0 (Root)')
+					.addOption('1', 'Level 1 (Child)')
+					.onChange(value => {
+						this.level = parseInt(value);
+						this.refreshParentSelection();
+					}));
+
+			// Container for parent selection
+			const parentSelectionContainer = this.dynamicFieldsContainer.createEl('div');
+			this.refreshParentSelection(parentSelectionContainer);
+		} else {
+			// Non-nested indices are always level 0
+			this.level = 0;
+		}
+	}
+
+	private refreshParentSelection(container: HTMLElement = this.dynamicFieldsContainer) {
+		container.empty();
+
+		if (this.isNested && this.level === 1) {
+			// Get available parent indices (level 0 indices without children)
+			const availableParents = Object.entries(this.plugin.configManager.getAllIndices())
+				.filter(([_, index]) => 
+					index.level === 0 && 
+					index.nested && 
+					(!index.children || index.children.length === 0)
+				)
+				.map(([name, _]) => name);
+
+			if (availableParents.length === 0) {
+				container.createEl('p', {
+					text: 'No available parent indices. Create a level 0 nested index first.',
+					attr: { style: 'color: var(--text-error);' }
+				});
+				return;
+			}
+
+			new Setting(container)
+				.setName('Parent Index')
+				.setDesc('Select the parent index (must be a level 0 nested index without children)')
+				.addDropdown(dropdown => {
+					dropdown.addOption('', 'Select parent...');
+					availableParents.forEach(name => dropdown.addOption(name, name));
+					dropdown.onChange(value => this.parentIndex = value || null);
+				});
+		}
+	}
+
+	private validateFields(): boolean {
+		if (!this.indexId) {
+			new Notice('Index ID is required');
+			return false;
+		}
+
+		// Check if index already exists
+		const existingIndices = Object.keys(this.plugin.configManager.getAllIndices());
+		if (existingIndices.includes(this.indexId)) {
+			new Notice(`Index "${this.indexId}" already exists`);
+			return false;
+		}
+
+		if (this.isNested && this.level === 1 && !this.parentIndex) {
+			new Notice('Parent index is required for level 1 indices');
+			return false;
+		}
+
+		return true;
+	}
+}
+
 export class IndexNoteManagerSettingTab extends PluginSettingTab {
 	plugin: IndexNoteManagerPlugin;
 	jsonEditor: TextAreaComponent;
@@ -812,11 +975,13 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 
 				// Show the index relationship
 				const parentIndex = question.indexName;
-				const childIndex = this.plugin.configManager.getIndexConfig(parentIndex)?.children?.[0];
-				new Setting(questionDetails)
-					.setName('Index Relationship')
-					.setDesc(`${parentIndex} → ${childIndex || 'N/A'}`)
-					.setClass('question-setting');
+				if (parentIndex) {
+					const childIndex = this.plugin.configManager.getIndexConfig(parentIndex)?.children?.[0];
+					new Setting(questionDetails)
+						.setName('Index Relationship')
+						.setDesc(`${parentIndex} → ${childIndex || 'N/A'}`)
+						.setClass('question-setting');
+				}
 			} else {
 				new Setting(questionDetails)
 					.setName('Answer ID')
@@ -880,7 +1045,18 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 		const indicesSection = containerEl.createEl('details', { cls: 'indices-section' });
 		indicesSection.createEl('summary', { text: 'Index Relationships' });
 		
-		// Create Canvas button at the top
+		// Add New Index button
+		new Setting(indicesSection)
+			.setName('Add New Index')
+			.setDesc('Create a new index')
+			.addButton(btn => btn
+				.setButtonText('New Index')
+				.setCta()
+				.onClick(() => {
+					new NewIndexModal(this.app, this.plugin).open();
+				}));
+
+		// Create Canvas button
 		new Setting(indicesSection)
 			.setName('Visualize Index Relationships')
 			.setDesc('Create an Obsidian Canvas showing index relationships')
@@ -890,6 +1066,64 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				.onClick(() => {
 					new IndexRelationshipsCanvasModal(this.app, this.plugin).open();
 				}));
+
+		// Add CSS for better visual hierarchy
+		const style = document.createElement('style');
+		style.textContent = `
+			.indices-section, .questions-section, .note-types-section {
+				margin-top: 20px;
+				padding: 10px;
+				border-radius: 5px;
+				background-color: var(--background-secondary);
+			}
+
+			.index-details, .question-details, .note-type-container {
+				margin: 10px 0;
+				padding: 10px;
+				border-left: 2px solid var(--interactive-accent);
+				background-color: var(--background-primary);
+				border-radius: 5px;
+			}
+
+			.nested-index-details, .nested-question-details, .subtype-details {
+				margin: 10px 0 10px 20px;
+				padding: 10px;
+				border-left: 2px solid var(--text-accent);
+				background-color: var(--background-secondary-alt);
+				border-radius: 5px;
+			}
+
+			.new-entry-config, .frontmatter-container, .questions-container {
+				margin: 10px 0 10px 20px;
+				padding: 10px;
+				border-left: 2px solid var(--text-muted);
+				background-color: var(--background-modifier-form-field);
+				border-radius: 5px;
+			}
+
+			.index-buttons {
+				padding: 10px;
+				background-color: var(--background-secondary-alt);
+				border-radius: 5px;
+				margin: 10px 0;
+			}
+
+			details summary {
+				padding: 5px;
+				cursor: pointer;
+				font-weight: bold;
+			}
+
+			details summary:hover {
+				background-color: var(--background-modifier-hover);
+			}
+
+			.question-setting, .index-setting, .nested-question-setting {
+				border-bottom: 1px solid var(--background-modifier-border);
+				padding-bottom: 5px;
+			}
+		`;
+		document.head.appendChild(style);
 
 		// Group indices by their relationships
 		const indices = this.plugin.configManager.getAllIndices();
@@ -1253,31 +1487,55 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				});
 				nestedDetails.createEl('summary', { text: `Nested Question ${index + 1}: ${nestedQ.questionId}` });
 				
-				// Question ID
+				// Basic settings remain the same...
 				new Setting(nestedDetails)
 					.setName('Question ID')
 					.setDesc(nestedQ.questionId)
 					.setClass('nested-question-setting');
 					
-				// Answer ID - Show actual answerId or questionId if answerId is not set
 				new Setting(nestedDetails)
 					.setName('Answer ID')
 					.setDesc(nestedQ.answerId || nestedQ.questionId)
 					.setClass('nested-question-setting');
 					
-				// Type
 				new Setting(nestedDetails)
 					.setName('Type')
 					.setDesc(nestedQ.type || 'tpsuggester')
 					.setClass('nested-question-setting');
 					
-				// Prompt
 				new Setting(nestedDetails)
 					.setName('Prompt')
 					.setDesc(nestedQ.prompt || 'No prompt specified')
 					.setClass('nested-question-setting');
 
-				// Index Name if present
+				// Create New Entry Configuration
+				if (nestedQ.createNewEntry) {
+					const newEntryDetails = nestedDetails.createEl('details', {
+						cls: 'new-entry-config'
+					});
+					newEntryDetails.createEl('summary', { text: 'Create New Entry Configuration' });
+					
+					new Setting(newEntryDetails)
+						.setName('Can Create New Entry')
+						.setDesc('Yes')
+						.setClass('nested-question-setting');
+						
+					if (nestedQ.newEntryNoteType) {
+						new Setting(newEntryDetails)
+							.setName('Note Type')
+							.setDesc(nestedQ.newEntryNoteType)
+							.setClass('nested-question-setting');
+					}
+					
+					if (nestedQ.newEntryNoteSubtype) {
+						new Setting(newEntryDetails)
+							.setName('Note Subtype')
+							.setDesc(nestedQ.newEntryNoteSubtype)
+							.setClass('nested-question-setting');
+					}
+				}
+
+				// Rest of the settings remain the same...
 				if (nestedQ.indexName) {
 					new Setting(nestedDetails)
 						.setName('Index Name')
@@ -1285,7 +1543,6 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						.setClass('nested-question-setting');
 				}
 
-				// Show if manual entry is allowed
 				if (nestedQ.allowManualEntry !== undefined) {
 					new Setting(nestedDetails)
 						.setName('Allow Manual Entry')
@@ -1293,7 +1550,6 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						.setClass('nested-question-setting');
 				}
 
-				// Show if multiple selections are allowed
 				if (nestedQ.multipleSelections !== undefined) {
 					new Setting(nestedDetails)
 						.setName('Multiple Selections')
@@ -1301,7 +1557,6 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						.setClass('nested-question-setting');
 				}
 
-				// Parent relationships
 				if (nestedQ.parents && nestedQ.parents.length > 0) {
 					new Setting(nestedDetails)
 						.setName('Parent Answer IDs')
@@ -1309,7 +1564,6 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						.setClass('nested-question-setting');
 				}
 
-				// Recursively display nested questions if present
 				if (nestedQ.type === 'nestedTpsuggester' && nestedQ.nest) {
 					this.displayNestedQuestions(nestedDetails, nestedQ);
 				}

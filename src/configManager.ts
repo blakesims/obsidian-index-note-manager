@@ -61,6 +61,44 @@ export class ConfigManager {
 		return this.data.indexConfig.indices;
 	}
 
+	async addIndex(indexName: string, index: Index): Promise<void> {
+		// Check if index already exists
+		if (this.data.indexConfig.indices[indexName]) {
+			throw new Error(`Index ${indexName} already exists`);
+		}
+
+		// Add the new index
+		this.data.indexConfig.indices[indexName] = index;
+
+		// Save the updated configuration
+		await this.saveData();
+		log(
+			"generalDebug",
+			"Added new index:",
+			indexName,
+			JSON.stringify(index, null, 2),
+		);
+	}
+
+	async updateParentIndex(indexName: string, updatedIndex: Index): Promise<void> {
+		// Check if index exists
+		if (!this.data.indexConfig.indices[indexName]) {
+			throw new Error(`Index ${indexName} not found`);
+		}
+
+		// Update the index
+		this.data.indexConfig.indices[indexName] = updatedIndex;
+
+		// Save the updated configuration
+		await this.saveData();
+		log(
+			"generalDebug",
+			"Updated parent index:",
+			indexName,
+			JSON.stringify(updatedIndex, null, 2),
+		);
+	}
+
 	async getIndexEntries(
 		indexName: string,
 		parentEntry: string | null = null,
