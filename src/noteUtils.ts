@@ -65,17 +65,23 @@ export class NoteUtils {
 		}
 	}
 
+	private sanitizeFileName(fileName: string): string {
+		return fileName.replace(/[^a-zA-Z0-9-_ ]/g, "-");
+	}
+
 	private getNewNotePath(
 		subtypeConfig: NoteSubtype,
 		answers: Record<string, Answer>,
 	): string {
 		let folderPath = this.placeholderUtils.replacePlaceholders(
-			subtypeConfig.folder,
-			answers,
-		);
-		let fileName = this.placeholderUtils.replacePlaceholders(
-			subtypeConfig.title,
-			answers,
+				subtypeConfig.folder,
+				answers,
+			);
+		let fileName = this.sanitizeFileName(
+			this.placeholderUtils.replacePlaceholders(
+				subtypeConfig.title,
+				answers,
+			)
 		);
 
 		return `${folderPath}/${fileName}.md`;

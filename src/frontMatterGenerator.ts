@@ -200,18 +200,17 @@ export class FrontMatterGenerator {
 
 		const { value } = answerObj;
 
-		if (multipleSelections) {
+		if (Array.isArray(value) || multipleSelections) {
 			const arrayValue = Array.isArray(value) ? value : [value];
-			if (frontMatterType === "link") {
-				return (
-					"\n" +
-					arrayValue.map((item) => `  - "[[${item}]]"`).join("\n")
-				);
-			} else {
-				return (
-					"\n" + arrayValue.map((item) => `  - "${item}"`).join("\n")
-				);
+			let result = "";
+			for (const item of arrayValue) {
+				if (frontMatterType === "link") {
+					result += `\n  - "[[${item}]]"`;
+				} else {
+					result += `\n  - "${item}"`;
+				}
 			}
+			return result;
 		} else {
 			if (frontMatterType === "link") {
 				return `"[[${value}]]"`;

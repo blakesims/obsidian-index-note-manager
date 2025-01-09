@@ -6,6 +6,8 @@ export class PlaceholderUtils {
 		answers: Record<string, Answer>,
 		allowArrays: boolean = false,
 	): string {
+		if (!str || !answers) return str;
+
 		return str.replace(/{{([^}]+)}}/g, (match, placeholder) => {
 			const answerKey = placeholder.trim();
 			const answer = answers[answerKey];
