@@ -1,5 +1,5 @@
 import { Plugin } from "obsidian";
-import { IndexEntry, NoteConfig, GlobalIndex } from "./types";
+import { IndexEntry, NoteConfig, GlobalIndex, Index } from "./types";
 import { log } from "./debugUtils";
 
 interface PluginData {
@@ -55,6 +55,10 @@ export class ConfigManager {
 			throw new Error(`Index ${indexName} not found`);
 		}
 		return index;
+	}
+
+	getAllIndices(): { [key: string]: Index } {
+		return this.data.indexConfig.indices;
 	}
 
 	async getIndexEntries(
