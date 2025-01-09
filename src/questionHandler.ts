@@ -206,7 +206,7 @@ export class QuestionHandler {
 					selectedOptions.push(answer);
 				}
 			} else if (answer === "New Entry") {
-				const newOption = await this.modalUtils.inputPrompt(prompt);
+				const newOption = await this.modalUtils.inputPrompt(replacedPrompt);
 				if (newOption === null) {
 					log(
 						"questionFlowDebug",
@@ -294,10 +294,15 @@ export class QuestionHandler {
 	private async handleNestedTpsuggester(
 		question: Question,
 		existingAnswers: Record<string, Answer>,
-	): Promise<Record<string, Answer>> {
+	): Promise<Record<string, Answer> | null> {
 		const { indexName: topLevelIndexName, nest } = question;
-		const nestedAnswers: Record<string, Answer> = {};
+		
+		if (!nest || !Array.isArray(nest)) {
+			log("errorDebug", "Nested question configuration is invalid");
+			return null;
+		}
 
+		const nestedAnswers: Record<string, Answer> = {};
 		let currentIndexName = topLevelIndexName;
 		let parentAnswer: Answer | null = null;
 
@@ -305,10 +310,20 @@ export class QuestionHandler {
 			const nestedQuestion = nest[level];
 			const answerId = nestedQuestion.answerId;
 
+			if (!answerId) {
+				log("errorDebug", `Missing answerId in nested question at level ${level}`);
+				return null;
+			}
+
 			if (existingAnswers[answerId]) {
 				nestedAnswers[answerId] = existingAnswers[answerId];
 				parentAnswer = nestedAnswers[answerId];
 				continue;
+			}
+
+			if (!currentIndexName) {
+				log("errorDebug", `Missing index name at level ${level}`);
+				return null;
 			}
 
 			const possibleEntries = await this.getPossibleEntries(
@@ -316,13 +331,25 @@ export class QuestionHandler {
 				parentAnswer?.value || null,
 			);
 
+			// Create a merged answers object that includes both existing and nested answers
+			const mergedAnswers = { ...existingAnswers, ...nestedAnswers };
+			
+			// Replace placeholders in the prompt before passing to handleTpsuggester
+			const replacedPrompt = this.placeholderUtils.replacePlaceholders(
+				nestedQuestion.prompt,
+				mergedAnswers,
+			);
+			log("questionFlowDebug", `Original prompt: ${nestedQuestion.prompt}`);
+			log("questionFlowDebug", `Replaced prompt: ${replacedPrompt}`);
+
 			const result = await this.handleTpsuggester(
 				{
 					...nestedQuestion,
+					prompt: replacedPrompt,  // Use the replaced prompt
 					indexName: currentIndexName,
 					choices: possibleEntries,
 				},
-				existingAnswers,
+				mergedAnswers,  // Pass merged answers
 				level,
 				parentAnswer?.value || null,
 			);
@@ -348,7 +375,11 @@ export class QuestionHandler {
 			if (level < nest.length - 1) {
 				const nextIndex =
 					this.configManager.getIndexConfig(currentIndexName);
-				currentIndexName = nextIndex.children[0];
+				currentIndexName = nextIndex.children?.[0];
+				if (!currentIndexName) {
+					log("errorDebug", `No child index found for ${currentIndexName}`);
+					return null;
+				}
 			}
 		}
 
