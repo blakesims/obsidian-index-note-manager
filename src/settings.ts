@@ -99,6 +99,21 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						.setDesc(subtype.indexName)
 						.setClass('subtype-setting');
 				}
+
+				// Front Matter Section
+				if (subtype.frontMatter && subtype.frontMatter.length > 0) {
+					const frontMatterDetails = subtypeDetails.createEl('details', {
+						cls: 'frontmatter-container'
+					});
+					frontMatterDetails.createEl('summary', { text: 'Front Matter' });
+					
+					subtype.frontMatter.forEach(field => {
+						const fieldSetting = new Setting(frontMatterDetails)
+							.setName(field.id)
+							.setDesc(`${field.type}: ${field.value}`)
+							.setClass('frontmatter-setting');
+					});
+				}
 				
 				// Display questions if they exist
 				if (subtype.questions && subtype.questions.length > 0) {

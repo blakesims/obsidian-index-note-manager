@@ -360,7 +360,10 @@
             },
             "children": {
               "course": [
-                "courseA"
+                "courseA",
+                "newCourse for student",
+                "new-course-2nd-entry",
+                "new course entry"
               ]
             }
           },
@@ -379,6 +382,12 @@
             "metadata": {
               "level": 0,
               "parents": []
+            },
+            "children": {
+              "course": [
+                "new course",
+                "another ocurse"
+              ]
             }
           },
           "universityA new v2": {
@@ -392,6 +401,35 @@
                 "Course v3"
               ]
             }
+          },
+          "new-university-for-student": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            },
+            "children": {
+              "course": [
+                "new-course-new-uni-new-student"
+              ]
+            }
+          },
+          "new-course>new-uni": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            },
+            "children": {
+              "course": [
+                "new-course"
+              ]
+            }
+          },
+          "new uni entry ": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            },
+            "children": {}
           }
         }
       },
@@ -455,6 +493,62 @@
               "level": 1,
               "parents": [
                 "universityB"
+              ]
+            }
+          },
+          "newCourse for student": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA"
+              ]
+            }
+          },
+          "new-course-new-uni-new-student": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "new-university-for-student"
+              ]
+            }
+          },
+          "new-course": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "new-course>new-uni"
+              ]
+            }
+          },
+          "new-course-2nd-entry": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA"
+              ]
+            }
+          },
+          "new course": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA new"
+              ]
+            }
+          },
+          "another ocurse": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA new"
+              ]
+            }
+          },
+          "new course entry": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA"
               ]
             }
           }
