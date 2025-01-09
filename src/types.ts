@@ -36,6 +36,7 @@ export interface NoteSubtype {
 	frontMatter: FrontMatterField[];
 	questions: string[];
 	title: string;
+	indexName?: string;
 }
 
 export interface FrontMatterField {

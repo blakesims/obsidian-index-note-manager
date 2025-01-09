@@ -1,7 +1,7 @@
-import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, Plugin } from "obsidian";
 import { NoteCreator } from "./src/noteCreator";
 import { ConfigManager } from "./src/configManager";
-import { NoteConfig } from "./src/types";
+import { IndexNoteManagerSettingTab } from "./src/settings";
 import "./styles.css";
 
 export default class NoteCreatorPlugin extends Plugin {
@@ -27,52 +27,11 @@ export default class NoteCreatorPlugin extends Plugin {
 			},
 		});
 
-		// Add settings tab
-		this.addSettingTab(new NoteCreatorSettingTab(this.app, this));
+		// Add settings tab with our new implementation
+		this.addSettingTab(new IndexNoteManagerSettingTab(this.app, this));
 	}
 
 	async onunload() {
 		await this.configManager.saveData();
-	}
-}
-
-class NoteCreatorSettingTab extends PluginSettingTab {
-	plugin: NoteCreatorPlugin;
-
-	constructor(app: App, plugin: NoteCreatorPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const { containerEl } = this;
-
-		containerEl.empty();
-
-		containerEl.createEl("h2", { text: "Note Creator Settings" });
-
-		new Setting(containerEl)
-			.setName("Configuration")
-			.setDesc("JSON configuration for note types and questions")
-			.addTextArea((text) =>
-				text
-					.setPlaceholder("Paste your JSON configuration here")
-					.setValue(
-						JSON.stringify(
-							this.plugin.configManager.getNoteConfig(),
-							null,
-							2,
-						),
-					)
-					.onChange(async (value) => {
-						try {
-							const noteConfig: NoteConfig = JSON.parse(value);
-							this.plugin.configManager.setNoteConfig(noteConfig);
-							await this.plugin.configManager.saveData();
-						} catch (e) {
-							console.error("Invalid JSON:", e);
-						}
-					}),
-			);
 	}
 }
