@@ -106,6 +106,635 @@ class NewIndexEntryModal extends Modal {
 	}
 }
 
+class NewNoteTypeModal extends Modal {
+	private plugin: IndexNoteManagerPlugin;
+	private typeId: string = '';
+	private baseFrontMatterPath: string = '';
+
+	constructor(app: App, plugin: IndexNoteManagerPlugin) {
+		super(app);
+		this.plugin = plugin;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: 'New Note Type' });
+
+		// Type ID input
+		new Setting(contentEl)
+			.setName('Type ID')
+			.setDesc('Enter the ID for the new note type')
+			.addText(text => text
+				.setPlaceholder('Type ID')
+				.onChange(value => this.typeId = value.trim()));
+
+		// Base front matter path input
+		new Setting(contentEl)
+			.setName('Base Front Matter Path')
+			.setDesc('(Optional) Path to base front matter template')
+			.addText(text => text
+				.setPlaceholder('Path to base front matter')
+				.onChange(value => this.baseFrontMatterPath = value.trim()));
+
+		// Save button
+		new Setting(contentEl)
+			.addButton(btn => btn
+				.setButtonText('Save')
+				.setCta()
+				.onClick(async () => {
+					if (!this.typeId) {
+						new Notice('Type ID is required');
+						return;
+					}
+
+					const noteConfig = this.plugin.configManager.getNoteConfig();
+					
+					// Check if type already exists
+					if (noteConfig.noteTypes.some(type => type.id === this.typeId)) {
+						new Notice(`Note type "${this.typeId}" already exists`);
+						return;
+					}
+
+					try {
+						noteConfig.noteTypes.push({
+							id: this.typeId,
+							baseFrontMatterPath: this.baseFrontMatterPath || undefined,
+							subtypes: []
+						});
+
+						await this.plugin.configManager.setNoteConfig(noteConfig);
+						await this.plugin.configManager.saveData();
+						new Notice(`Created new note type "${this.typeId}"`);
+						this.close();
+					} catch (error) {
+						new Notice(`Failed to create note type: ${error.message}`);
+						console.error('Failed to create note type:', error);
+					}
+				}));
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
+class NewSubtypeModal extends Modal {
+	private plugin: IndexNoteManagerPlugin;
+	private noteType: NoteType;
+	private subtypeId: string = '';
+	private folder: string = '';
+	private template: string = '';
+	private selectedQuestions: string[] = [];
+	private frontMatter: Array<{id: string; value: string; type: string}> = [];
+
+	constructor(app: App, plugin: IndexNoteManagerPlugin, noteType: NoteType) {
+		super(app);
+		this.plugin = plugin;
+		this.noteType = noteType;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: `New Subtype for ${this.noteType.id}` });
+
+		// Subtype ID input
+		new Setting(contentEl)
+			.setName('Subtype ID')
+			.setDesc('Enter the ID for the new subtype')
+			.addText(text => text
+				.setPlaceholder('Subtype ID')
+				.onChange(value => this.subtypeId = value.trim()));
+
+		// Folder input
+		new Setting(contentEl)
+			.setName('Folder')
+			.setDesc('Enter the folder path for this subtype')
+			.addText(text => text
+				.setPlaceholder('Folder path')
+				.onChange(value => this.folder = value.trim()));
+
+		// Template input
+		new Setting(contentEl)
+			.setName('Template')
+			.setDesc('(Optional) Path to template file')
+			.addText(text => text
+				.setPlaceholder('Template path')
+				.onChange(value => this.template = value.trim()));
+
+		// Questions selection
+		const questions = this.plugin.configManager.getNoteConfig().questions;
+		if (questions.length > 0) {
+			const questionContainer = contentEl.createEl('details', { cls: 'questions-container' });
+			questionContainer.createEl('summary', { text: 'Select Questions' });
+
+			questions.forEach(question => {
+				new Setting(questionContainer)
+					.setName(question.questionId)
+					.setDesc(question.prompt)
+					.addToggle(toggle => toggle
+						.onChange(value => {
+							if (value) {
+								this.selectedQuestions.push(question.questionId);
+							} else {
+								this.selectedQuestions = this.selectedQuestions.filter(
+									id => id !== question.questionId
+								);
+							}
+						}));
+			});
+		}
+
+		// Front Matter Configuration
+		const frontMatterContainer = contentEl.createEl('details', { cls: 'frontmatter-container' });
+		frontMatterContainer.createEl('summary', { text: 'Front Matter Configuration' });
+
+		// Add Front Matter Entry button
+		new Setting(frontMatterContainer)
+			.setName('Add Front Matter Entry')
+			.setDesc('Add a new front matter field')
+			.addButton(btn => btn
+				.setButtonText('Add Field')
+				.onClick(() => {
+					const fieldContainer = frontMatterContainer.createEl('div', { cls: 'frontmatter-field' });
+					
+					// Field ID
+					new Setting(fieldContainer)
+						.setName('Field ID')
+						.addText(text => text
+							.setPlaceholder('Field ID (e.g., tags)')
+							.onChange(value => {
+								const index = this.frontMatter.length;
+								this.frontMatter[index] = {
+									...this.frontMatter[index] || {},
+									id: value.trim()
+								};
+							}));
+
+					// Field Value
+					new Setting(fieldContainer)
+						.setName('Value')
+						.addText(text => text
+							.setPlaceholder('Value (can include {{placeholders}})')
+							.onChange(value => {
+								const index = this.frontMatter.length;
+								this.frontMatter[index] = {
+									...this.frontMatter[index] || {},
+									value: value.trim()
+								};
+							}));
+
+					// Field Type
+					new Setting(fieldContainer)
+						.setName('Type')
+						.addDropdown(dropdown => {
+							dropdown
+								.addOption('string', 'String')
+								.addOption('link', 'Link')
+								.onChange(value => {
+									const index = this.frontMatter.length;
+									this.frontMatter[index] = {
+										...this.frontMatter[index] || {},
+										type: value
+									};
+								});
+						});
+				}));
+
+		// Save button
+		new Setting(contentEl)
+			.addButton(btn => btn
+				.setButtonText('Save')
+				.setCta()
+				.onClick(async () => {
+					if (!this.subtypeId) {
+						new Notice('Subtype ID is required');
+						return;
+					}
+
+					if (!this.folder) {
+						new Notice('Folder is required');
+						return;
+					}
+
+					// Check if subtype already exists
+					const existingSubtypes = this.noteType.subtypes || [];
+					if (existingSubtypes.some(subtype => subtype.id === this.subtypeId)) {
+						new Notice(`Subtype "${this.subtypeId}" already exists`);
+						return;
+					}
+
+					try {
+						const noteConfig = this.plugin.configManager.getNoteConfig();
+						const typeIndex = noteConfig.noteTypes.findIndex(
+							type => type.id === this.noteType.id
+						);
+
+						if (typeIndex === -1) {
+							throw new Error('Note type not found');
+						}
+
+						// Validate front matter entries
+						const validFrontMatter = this.frontMatter.filter(entry => 
+							entry.id && entry.value && entry.type);
+
+						const newSubtype: NoteSubtype = {
+							id: this.subtypeId,
+							folder: this.folder,
+							template: this.template || '',
+							title: this.subtypeId,
+							questions: this.selectedQuestions,
+							frontMatter: validFrontMatter
+						};
+
+						noteConfig.noteTypes[typeIndex].subtypes.push(newSubtype);
+						await this.plugin.configManager.setNoteConfig(noteConfig);
+						await this.plugin.configManager.saveData();
+						new Notice(`Created new subtype "${this.subtypeId}"`);
+						this.close();
+					} catch (error) {
+						new Notice(`Failed to create subtype: ${error.message}`);
+						console.error('Failed to create subtype:', error);
+					}
+				}));
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
+class PlaceholderViewerModal extends Modal {
+	private questions: Question[];
+
+	constructor(app: App, questions: Question[]) {
+		super(app);
+		this.questions = questions;
+	}
+
+	private getNestedQuestionPlaceholders(question: Question, container: HTMLElement) {
+		if (!question.nest) return;
+
+		// Create a section for this nested question group
+		const nestedSection = container.createEl('details', { 
+			cls: 'nested-placeholder-group' 
+		});
+		nestedSection.createEl('summary', { text: question.questionId });
+
+		// Add description of the nested structure
+		const descEl = nestedSection.createEl('div', { 
+			cls: 'nested-description',
+			attr: { style: 'margin-bottom: 10px; color: var(--text-muted);' }
+		});
+		descEl.createEl('small', { 
+			text: 'This is a nested question group. Each nested question\'s answer will be available as a direct placeholder.'
+		});
+
+		// Process each nested question
+		question.nest.forEach(nestedQ => {
+			if (nestedQ.answerId) {
+				// Create placeholder display
+				new Setting(nestedSection)
+					.setName(`{{${nestedQ.answerId}}}`)
+					.setDesc(`From nested question: ${nestedQ.prompt}`)
+					.setClass('placeholder-item');
+
+				// If this nested question has its own nest, process recursively
+				if (nestedQ.nest) {
+					this.getNestedQuestionPlaceholders(nestedQ, nestedSection);
+				}
+			}
+		});
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: 'Available Placeholders' });
+
+		const placeholdersContainer = contentEl.createEl('div', { cls: 'placeholders-container' });
+
+		// Add explanation at the top
+		const explanationEl = placeholdersContainer.createEl('div', { 
+			cls: 'placeholder-explanation',
+			attr: { style: 'margin-bottom: 20px; padding: 10px; background: var(--background-secondary);' }
+		});
+		explanationEl.createEl('p', { 
+			text: 'Placeholders are used in templates and front matter. They are replaced with actual values when a note is created.',
+			attr: { style: 'margin-bottom: 5px;' }
+		});
+		explanationEl.createEl('p', { 
+			text: 'Note: Nested questions create flat placeholders. Each answer is available directly by its answerId.',
+			attr: { style: 'color: var(--text-muted);' }
+		});
+
+		// Standard questions
+		const standardQuestions = this.questions.filter(q => q.type !== 'nestedTpsuggester');
+		if (standardQuestions.length > 0) {
+			const standardSection = placeholdersContainer.createEl('details', { cls: 'placeholder-section' });
+			standardSection.createEl('summary', { text: 'Standard Questions' });
+			
+			standardQuestions.forEach(question => {
+				if (question.answerId) {
+					new Setting(standardSection)
+						.setName(`{{${question.answerId}}}`)
+						.setDesc(`From question: ${question.prompt}`)
+						.setClass('placeholder-item');
+				}
+			});
+		}
+
+		// Nested questions
+		const nestedQuestions = this.questions.filter(q => q.type === 'nestedTpsuggester');
+		if (nestedQuestions.length > 0) {
+			const nestedSection = placeholdersContainer.createEl('details', { cls: 'placeholder-section' });
+			nestedSection.createEl('summary', { text: 'Nested Questions' });
+			
+			nestedQuestions.forEach(question => {
+				this.getNestedQuestionPlaceholders(question, nestedSection);
+			});
+		}
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
+class IndexRelationshipsCanvasModal extends Modal {
+	private plugin: IndexNoteManagerPlugin;
+	private canvasName: string = 'Index Relationships';
+
+	constructor(app: App, plugin: IndexNoteManagerPlugin) {
+		super(app);
+		this.plugin = plugin;
+	}
+
+	private generateCanvasJson(): any {
+		const indices = this.plugin.configManager.getAllIndices();
+		const nodes: any[] = [];
+		const edges: any[] = [];
+		
+		// Constants for layout
+		const BOX_WIDTH = 300;
+		const BOX_HEIGHT = 150;
+		const VERTICAL_GAP = BOX_HEIGHT * 5; // Distance between parent and child rows
+		const HORIZONTAL_GAP = BOX_WIDTH * 2; // Gap between nodes in the same row
+		
+		// First, identify root nodes (level 0) and child nodes
+		const rootIndices = Object.entries(indices).filter(([_, index]) => index.level === 0);
+		const childIndices = Object.entries(indices).filter(([_, index]) => index.level > 0);
+		
+		// Position root nodes at y=0, spread horizontally
+		let x = 100;
+		rootIndices.forEach(([indexName, index]) => {
+			nodes.push({
+				id: indexName,
+				type: 'text',
+				text: `${indexName}\nLevel: ${index.level}${index.nested ? '\nNested: Yes' : ''}`,
+				x,
+				y: 0,
+				width: BOX_WIDTH,
+				height: BOX_HEIGHT,
+				color: "4" // green for root nodes
+			});
+			x += HORIZONTAL_GAP;
+		});
+		
+		// Position child nodes above, spread horizontally
+		x = 100;
+		childIndices.forEach(([indexName, index]) => {
+			nodes.push({
+				id: indexName,
+				type: 'text',
+				text: `${indexName}\nLevel: ${index.level}${index.nested ? '\nNested: Yes' : ''}`,
+				x,
+				y: VERTICAL_GAP,
+				width: BOX_WIDTH,
+				height: BOX_HEIGHT,
+				color: "5" // cyan for child nodes
+			});
+			x += HORIZONTAL_GAP;
+		});
+
+		// Create edges for parent-child relationships
+		Object.entries(indices).forEach(([indexName, index]) => {
+			// Parent relationships
+			if (index.parents) {
+				index.parents.forEach(parentName => {
+					edges.push({
+						id: `${parentName}-${indexName}`,
+						fromNode: parentName,
+						toNode: indexName,
+						fromEnd: "none",
+						toEnd: "arrow",
+						label: "parent of",
+						color: "6" // purple for edges
+					});
+				});
+			}
+
+			// Child relationships
+			if (index.children) {
+				index.children.forEach(childName => {
+						edges.push({
+							id: `${indexName}-${childName}`,
+							fromNode: indexName,
+							toNode: childName,
+							fromEnd: "none",
+							toEnd: "arrow",
+							label: "has child",
+							color: "6" // purple for edges
+						});
+				});
+			}
+		});
+
+		return {
+			nodes,
+			edges
+		};
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: 'Create Index Relationships Canvas' });
+
+		new Setting(contentEl)
+			.setName('Canvas Name')
+			.setDesc('Enter the name for the canvas file (without extension)')
+			.addText(text => text
+				.setValue(this.canvasName)
+				.onChange(value => this.canvasName = value.trim()));
+
+		new Setting(contentEl)
+			.addButton(btn => btn
+				.setButtonText('Create Canvas')
+				.setCta()
+				.onClick(async () => {
+					try {
+						const canvasJson = this.generateCanvasJson();
+						const fileName = `${this.canvasName}.canvas`;
+						
+						// Use Obsidian's adapter to write the file
+						await this.app.vault.create(
+							fileName,
+							JSON.stringify(canvasJson, null, 2)
+						);
+						
+						new Notice(`Created canvas file: ${fileName}`);
+						this.close();
+					} catch (error) {
+						new Notice(`Failed to create canvas: ${error.message}`);
+						console.error('Failed to create canvas:', error);
+					}
+				}));
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
+class IndexEntriesCanvasModal extends Modal {
+	private plugin: IndexNoteManagerPlugin;
+	private indexName: string;
+	private index: Index;
+	private canvasName: string;
+
+	constructor(app: App, plugin: IndexNoteManagerPlugin, indexName: string, index: Index) {
+		super(app);
+		this.plugin = plugin;
+		this.indexName = indexName;
+		this.index = index;
+		this.canvasName = `${indexName}-entries`;
+	}
+
+	private generateEntriesCanvasJson(): any {
+		const nodes: any[] = [];
+		const edges: any[] = [];
+		
+		// Constants for layout
+		const BOX_WIDTH = 250;
+		const BOX_HEIGHT = 100;
+		const VERTICAL_GAP = BOX_HEIGHT * 3;
+		const HORIZONTAL_GAP = BOX_WIDTH * 1.5;
+		
+		// Group entries by level
+		const entriesByLevel: { [key: number]: string[] } = {};
+		Object.entries(this.index.entries).forEach(([entryName, entry]) => {
+			const level = entry.metadata.level;
+			entriesByLevel[level] = entriesByLevel[level] || [];
+			entriesByLevel[level].push(entryName);
+		});
+		
+		// Create nodes for each entry, organizing by level
+		Object.entries(entriesByLevel).forEach(([levelStr, entries]) => {
+			const level = parseInt(levelStr);
+			const y = level * VERTICAL_GAP;
+			
+			entries.forEach((entryName, index) => {
+				const entry = this.index.entries[entryName];
+				const x = index * HORIZONTAL_GAP;
+				
+				nodes.push({
+					id: entryName,
+					type: 'text',
+					text: entryName,
+					x,
+					y,
+					width: BOX_WIDTH,
+					height: BOX_HEIGHT,
+					color: "4" // green for all nodes
+				});
+				
+				// Create edges for parent-child relationships
+				if (entry.metadata.parents) {
+					entry.metadata.parents.forEach(parentName => {
+						edges.push({
+							id: `${parentName}-${entryName}`,
+							fromNode: parentName,
+							toNode: entryName,
+							fromEnd: "none",
+							toEnd: "arrow",
+							label: "parent of",
+							color: "6" // purple for edges
+						});
+					});
+				}
+
+				// Add edges for children if they exist
+				if (entry.children) {
+					Object.entries(entry.children).forEach(([childIndexName, childEntries]) => {
+						childEntries.forEach(childName => {
+							edges.push({
+								id: `${entryName}-${childName}`,
+								fromNode: entryName,
+								toNode: childName,
+								fromEnd: "none",
+								toEnd: "arrow",
+								label: "has child",
+								color: "6" // purple for edges
+							});
+						});
+					});
+				}
+			});
+		});
+
+		return {
+			nodes,
+			edges
+		};
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: `Create Entry Relationships Canvas for ${this.indexName}` });
+
+		new Setting(contentEl)
+			.setName('Canvas Name')
+			.setDesc('Enter the name for the canvas file (without extension)')
+			.addText(text => text
+				.setValue(this.canvasName)
+				.onChange(value => this.canvasName = value.trim()));
+
+		new Setting(contentEl)
+			.addButton(btn => btn
+				.setButtonText('Create Canvas')
+				.setCta()
+				.onClick(async () => {
+					try {
+						const canvasJson = this.generateEntriesCanvasJson();
+						const fileName = `${this.canvasName}.canvas`;
+						
+						await this.app.vault.create(
+							fileName,
+							JSON.stringify(canvasJson, null, 2)
+						);
+						
+						new Notice(`Created canvas file: ${fileName}`);
+						this.close();
+					} catch (error) {
+						new Notice(`Failed to create canvas: ${error.message}`);
+						console.error('Failed to create canvas:', error);
+					}
+				}));
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
 export class IndexNoteManagerSettingTab extends PluginSettingTab {
 	plugin: IndexNoteManagerPlugin;
 	jsonEditor: TextAreaComponent;
@@ -209,43 +838,7 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 			}
 			
 			// Nested questions
-			if (question.type === 'nestedTpsuggester' && question.nest) {
-				const nestedSection = questionDetails.createEl('details', {
-					cls: 'nested-questions-section'
-				});
-				nestedSection.createEl('summary', { text: 'Nested Questions' });
-				
-				question.nest.forEach((nestedQ: Question) => {
-					const nestedDetails = nestedSection.createEl('details', {
-						cls: 'nested-question-details'
-					});
-					nestedDetails.createEl('summary', { text: nestedQ.questionId });
-					
-					new Setting(nestedDetails)
-						.setName('Question ID')
-						.setDesc(nestedQ.questionId)
-						.setClass('nested-question-setting');
-						
-					new Setting(nestedDetails)
-						.setName('Answer ID')
-						.setDesc(nestedQ.answerId || 'N/A')
-						.setClass('nested-question-setting');
-						
-					if (nestedQ.parents && nestedQ.parents.length > 0) {
-						new Setting(nestedDetails)
-							.setName('Parent Answer IDs')
-							.setDesc(nestedQ.parents.join(', '))
-							.setClass('nested-question-setting');
-					}
-					
-					if (nestedQ.frontMatterType) {
-						new Setting(nestedDetails)
-							.setName('Front Matter Type')
-							.setDesc(nestedQ.frontMatterType)
-							.setClass('nested-question-setting');
-					}
-				});
-			}
+			this.displayNestedQuestions(questionDetails, question);
 		});
 		
 		// Indices Section
@@ -259,8 +852,14 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 			});
 			indexDetails.createEl('summary', { text: indexName });
 			
+			// Add buttons container
+			const buttonsContainer = indexDetails.createEl('div', { 
+				cls: 'index-buttons',
+				attr: { style: 'display: flex; gap: 10px; margin-bottom: 10px;' }
+			});
+
 			// Add New Entry button
-			new Setting(indexDetails)
+			new Setting(buttonsContainer)
 				.setName('Add New Entry')
 				.setDesc('Create a new entry in this index')
 				.addButton(btn => btn
@@ -274,6 +873,23 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 							index
 						).open();
 					}));
+
+			// Add View Entries button for nested indices
+			if (index.nested) {
+				new Setting(buttonsContainer)
+					.setName('View Entry Relationships')
+					.setDesc('Create a canvas showing relationships between entries in this index')
+					.addButton(btn => btn
+						.setButtonText('View Entries')
+						.onClick(() => {
+							new IndexEntriesCanvasModal(
+								this.app,
+								this.plugin,
+								indexName,
+								index
+							).open();
+						}));
+			}
 
 			new Setting(indexDetails)
 				.setName('Nested')
@@ -307,9 +923,31 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				.setClass('index-setting');
 		});
 		
+		// Add Create Canvas button at the top of Indices Section
+		new Setting(indicesSection)
+			.setName('Visualize Index Relationships')
+			.setDesc('Create an Obsidian Canvas showing index relationships')
+			.addButton(btn => btn
+				.setButtonText('Create Canvas')
+				.setCta()
+				.onClick(() => {
+					new IndexRelationshipsCanvasModal(this.app, this.plugin).open();
+				}));
+		
 		// Note Types Section
 		const noteTypesSection = containerEl.createEl('details', { cls: 'note-types-section' });
 		noteTypesSection.createEl('summary', { text: 'Note Types' });
+
+		// Add New Note Type button
+		new Setting(noteTypesSection)
+			.setName('Add New Note Type')
+			.setDesc('Create a new note type')
+			.addButton(btn => btn
+				.setButtonText('New Note Type')
+				.setCta()
+				.onClick(() => {
+					new NewNoteTypeModal(this.app, this.plugin).open();
+				}));
 		
 		const noteTypes = this.plugin.configManager.getNoteConfig().noteTypes;
 		
@@ -322,6 +960,17 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				text: `${noteType.id}`,
 				cls: 'note-type-header'
 			});
+
+			// Add New Subtype button
+			new Setting(noteTypeContainer)
+				.setName('Add New Subtype')
+				.setDesc('Create a new subtype for this note type')
+				.addButton(btn => btn
+					.setButtonText('New Subtype')
+					.setCta()
+					.onClick(() => {
+						new NewSubtypeModal(this.app, this.plugin, noteType).open();
+					}));
 			
 			if (noteType.baseFrontMatterPath) {
 				new Setting(noteTypeContainer)
@@ -353,34 +1002,154 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						.setClass('subtype-setting');
 				}
 				
+				// Enhanced Front Matter display
 				if (subtype.frontMatter && subtype.frontMatter.length > 0) {
 					const frontMatterDetails = subtypeDetails.createEl('details', {
 						cls: 'frontmatter-container'
 					});
-					frontMatterDetails.createEl('summary', { text: 'Front Matter' });
+					frontMatterDetails.createEl('summary', { text: 'Front Matter Configuration' });
 					
 					subtype.frontMatter.forEach(field => {
-						const fieldSetting = new Setting(frontMatterDetails)
-							.setName(field.id)
-							.setDesc(`${field.type}: ${field.value}`)
+						const fieldContainer = frontMatterDetails.createEl('div', { 
+							cls: 'frontmatter-field',
+							attr: { style: 'margin-bottom: 10px; padding: 5px; border-left: 2px solid var(--interactive-accent);' }
+						});
+						
+						new Setting(fieldContainer)
+							.setName('Field')
+							.setDesc(field.id)
 							.setClass('frontmatter-setting');
+							
+						new Setting(fieldContainer)
+							.setName('Type')
+							.setDesc(field.type)
+							.setClass('frontmatter-setting');
+							
+						new Setting(fieldContainer)
+							.setName('Value Template')
+							.setDesc(field.value)
+							.setClass('frontmatter-setting');
+
+						// Add placeholder detection
+						const placeholders = field.value.match(/{{[^}]+}}/g);
+						if (placeholders) {
+							const placeholderContainer = fieldContainer.createEl('div', { 
+								cls: 'placeholder-list',
+								attr: { style: 'margin-left: 20px;' }
+							});
+							placeholderContainer.createEl('small', { 
+								text: 'Uses placeholders: ' + placeholders.join(', '),
+								attr: { style: 'color: var(--text-muted);' }
+							});
+						}
 					});
 				}
 				
+				// Enhanced Questions display
 				if (subtype.questions && subtype.questions.length > 0) {
 					const questionsDetails = subtypeDetails.createEl('details', {
 						cls: 'questions-container'
 					});
-					questionsDetails.createEl('summary', { text: 'Questions' });
+					questionsDetails.createEl('summary', { text: 'Configured Questions' });
 					
 					subtype.questions.forEach((questionId: string) => {
-						new Setting(questionsDetails)
+						const question = questions.find(q => q.questionId === questionId);
+						const container = questionsDetails.createEl('div', { 
+							cls: 'question-config',
+							attr: { style: 'margin-bottom: 10px; padding: 5px; border-left: 2px solid var(--interactive-accent);' }
+						});
+						
+						new Setting(container)
 							.setName('Question ID')
 							.setDesc(questionId)
 							.setClass('question-setting');
+							
+						if (question) {
+							new Setting(container)
+								.setName('Prompt')
+								.setDesc(question.prompt)
+								.setClass('question-setting');
+								
+							new Setting(container)
+								.setName('Answer ID')
+								.setDesc(question.answerId || 'N/A')
+								.setClass('question-setting');
+								
+							if (question.type === 'nestedTpsuggester') {
+								new Setting(container)
+									.setName('Type')
+									.setDesc('Nested Questions')
+									.setClass('question-setting');
+							}
+						}
 					});
 				}
 			});
 		});
+
+		// Add View Placeholders button at the top of Questions Section
+		new Setting(questionsSection)
+			.setName('View Available Placeholders')
+			.setDesc('See all placeholders that can be used in templates and front matter')
+			.addButton(btn => btn
+				.setButtonText('View Placeholders')
+				.onClick(() => {
+					new PlaceholderViewerModal(this.app, questions).open();
+				}));
+	}
+
+	private displayNestedQuestions(container: HTMLElement, question: Question) {
+		if (question.type === 'nestedTpsuggester' && question.nest) {
+			const nestedSection = container.createEl('details', {
+				cls: 'nested-questions-section'
+			});
+			nestedSection.createEl('summary', { text: 'Nested Questions' });
+			
+			question.nest.forEach((nestedQ: Question) => {
+				const nestedDetails = nestedSection.createEl('details', {
+					cls: 'nested-question-details'
+				});
+				nestedDetails.createEl('summary', { text: nestedQ.questionId });
+				
+				new Setting(nestedDetails)
+					.setName('Question ID')
+					.setDesc(nestedQ.questionId)
+					.setClass('nested-question-setting');
+					
+				new Setting(nestedDetails)
+					.setName('Answer ID')
+					.setDesc(nestedQ.answerId || 'N/A')
+					.setClass('nested-question-setting');
+					
+				new Setting(nestedDetails)
+					.setName('Type')
+					.setDesc(nestedQ.type || 'N/A')
+					.setClass('nested-question-setting');
+					
+				new Setting(nestedDetails)
+					.setName('Prompt')
+					.setDesc(nestedQ.prompt || 'N/A')
+					.setClass('nested-question-setting');
+
+				if (nestedQ.parents && nestedQ.parents.length > 0) {
+					new Setting(nestedDetails)
+						.setName('Parent Answer IDs')
+						.setDesc(nestedQ.parents.join(', '))
+						.setClass('nested-question-setting');
+				}
+				
+				if (nestedQ.frontMatterType) {
+					new Setting(nestedDetails)
+						.setName('Front Matter Type')
+						.setDesc(nestedQ.frontMatterType)
+						.setClass('nested-question-setting');
+				}
+
+				// Recursively display nested questions
+				if (nestedQ.type === 'nestedTpsuggester') {
+					this.displayNestedQuestions(nestedDetails, nestedQ);
+				}
+			});
+		}
 	}
 } 
