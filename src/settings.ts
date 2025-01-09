@@ -625,67 +625,64 @@ class IndexEntriesCanvasModal extends Modal {
 		const BOX_HEIGHT = 100;
 		const VERTICAL_GAP = BOX_HEIGHT * 3;
 		const HORIZONTAL_GAP = BOX_WIDTH * 1.5;
+		const GROUP_GAP = BOX_WIDTH * 2; // Additional gap between groups
 		
-		// Group entries by level
-		const entriesByLevel: { [key: number]: string[] } = {};
-		Object.entries(this.index.entries).forEach(([entryName, entry]) => {
-			const level = entry.metadata.level;
-			entriesByLevel[level] = entriesByLevel[level] || [];
-			entriesByLevel[level].push(entryName);
-		});
+		// Get all parent entries and sort them
+		const parentEntries = Object.entries(this.index.entries);
+		let currentX = 0; // Keep track of rightmost position
 		
-		// Create nodes for each entry, organizing by level
-		Object.entries(entriesByLevel).forEach(([levelStr, entries]) => {
-			const level = parseInt(levelStr);
-			const y = level * VERTICAL_GAP;
+		// Process each parent and its children as a group
+		parentEntries.forEach(([parentName, parentEntry]) => {
+			const childEntries = parentEntry.children?.course || [];
+			if (childEntries.length === 0) return;
 			
-			entries.forEach((entryName, index) => {
-				const entry = this.index.entries[entryName];
-				const x = index * HORIZONTAL_GAP;
-				
-				nodes.push({
-					id: entryName,
+			// Place children first
+			const childNodes: any[] = [];
+			childEntries.forEach((childName: string, index: number) => {
+				const childNode = {
+					id: childName,
 					type: 'text',
-					text: entryName,
-					x,
-					y,
+					text: childName,
+					x: currentX + (index * HORIZONTAL_GAP),
+					y: VERTICAL_GAP,
 					width: BOX_WIDTH,
 					height: BOX_HEIGHT,
-					color: "4" // green for all nodes
-				});
+					color: "5" // cyan for child nodes
+				};
+				childNodes.push(childNode);
+				nodes.push(childNode);
 				
-				// Create edges for parent-child relationships
-				if (entry.metadata.parents) {
-					entry.metadata.parents.forEach(parentName => {
-						edges.push({
-							id: `${parentName}-${entryName}`,
-							fromNode: parentName,
-							toNode: entryName,
-							fromEnd: "none",
-							toEnd: "arrow",
-							label: "parent of",
-							color: "6" // purple for edges
-						});
-					});
-				}
-
-				// Add edges for children if they exist
-				if (entry.children) {
-					Object.entries(entry.children).forEach(([childIndexName, childEntries]) => {
-						childEntries.forEach(childName => {
-							edges.push({
-								id: `${entryName}-${childName}`,
-								fromNode: entryName,
-								toNode: childName,
-								fromEnd: "none",
-								toEnd: "arrow",
-								label: "has child",
-								color: "6" // purple for edges
-							});
-						});
-					});
-				}
+				// Create edge from parent to child
+				edges.push({
+					id: `${parentName}-${childName}`,
+					fromNode: parentName,
+					toNode: childName,
+					fromEnd: "none",
+					toEnd: "arrow",
+					label: "has course",
+					color: "6" // purple for edges
+				});
 			});
+			
+			// Calculate parent x position as midpoint of its children
+			const groupStartX = currentX;
+			const groupEndX = currentX + ((childEntries.length - 1) * HORIZONTAL_GAP);
+			const parentX = groupStartX + ((groupEndX - groupStartX) / 2);
+			
+			// Add parent node
+			nodes.push({
+				id: parentName,
+				type: 'text',
+				text: parentName,
+				x: parentX,
+				y: 0,
+				width: BOX_WIDTH,
+				height: BOX_HEIGHT,
+				color: "4" // green for parent nodes
+			});
+			
+			// Update currentX to start next group after this one
+			currentX = groupEndX + GROUP_GAP;
 		});
 
 		return {
@@ -697,6 +694,7 @@ class IndexEntriesCanvasModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.empty();
+		
 		contentEl.createEl('h2', { text: `Create Entry Relationships Canvas for ${this.indexName}` });
 
 		new Setting(contentEl)
@@ -793,19 +791,54 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				.setDesc(question.questionId)
 				.setClass('question-setting');
 				
-			new Setting(questionDetails)
-				.setName('Answer ID')
-				.setDesc(question.answerId || 'N/A')
-				.setClass('question-setting');
+			// For nested questions, show all answer IDs that will be generated
+			if (question.type === 'nestedTpsuggester' && question.nest) {
+				const answerIdsList = question.nest.map((q, i) => 
+					`${i + 1}. ${q.answerId}`
+				).join('\n');
+				new Setting(questionDetails)
+					.setName('Answer IDs')
+					.setDesc(answerIdsList)
+					.setClass('question-setting');
+
+				// Show all prompts in sequence
+				const promptsList = question.nest.map((q, i) => 
+					`${i + 1}. ${q.prompt}`
+				).join('\n');
+				new Setting(questionDetails)
+					.setName('Prompts')
+					.setDesc(promptsList)
+					.setClass('question-setting');
+
+				// Show the index relationship
+				const parentIndex = question.indexName;
+				const childIndex = this.plugin.configManager.getIndexConfig(parentIndex)?.children?.[0];
+				new Setting(questionDetails)
+					.setName('Index Relationship')
+					.setDesc(`${parentIndex} → ${childIndex || 'N/A'}`)
+					.setClass('question-setting');
+			} else {
+				new Setting(questionDetails)
+					.setName('Answer ID')
+					.setDesc(question.answerId || 'N/A')
+					.setClass('question-setting');
+
+				new Setting(questionDetails)
+					.setName('Prompt')
+					.setDesc(question.prompt || 'No prompt specified')
+					.setClass('question-setting');
+
+				if (question.indexName) {
+					new Setting(questionDetails)
+						.setName('Index Name')
+						.setDesc(question.indexName)
+						.setClass('question-setting');
+				}
+			}
 				
 			new Setting(questionDetails)
 				.setName('Type')
 				.setDesc(question.type)
-				.setClass('question-setting');
-				
-			new Setting(questionDetails)
-				.setName('Prompt')
-				.setDesc(question.prompt)
 				.setClass('question-setting');
 			
 			// Index-related settings
@@ -838,92 +871,16 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 			}
 			
 			// Nested questions
-			this.displayNestedQuestions(questionDetails, question);
+			if (question.type === 'nestedTpsuggester') {
+				this.displayNestedQuestions(questionDetails, question);
+			}
 		});
 		
 		// Indices Section
 		const indicesSection = containerEl.createEl('details', { cls: 'indices-section' });
 		indicesSection.createEl('summary', { text: 'Index Relationships' });
 		
-		const indices = this.plugin.configManager.getAllIndices();
-		Object.entries(indices).forEach(([indexName, index]: [string, Index]) => {
-			const indexDetails = indicesSection.createEl('details', {
-					cls: 'index-details'
-			});
-			indexDetails.createEl('summary', { text: indexName });
-			
-			// Add buttons container
-			const buttonsContainer = indexDetails.createEl('div', { 
-				cls: 'index-buttons',
-				attr: { style: 'display: flex; gap: 10px; margin-bottom: 10px;' }
-			});
-
-			// Add New Entry button
-			new Setting(buttonsContainer)
-				.setName('Add New Entry')
-				.setDesc('Create a new entry in this index')
-				.addButton(btn => btn
-					.setButtonText('New Entry')
-					.setCta()
-					.onClick(() => {
-						new NewIndexEntryModal(
-							this.app,
-							this.plugin,
-							indexName,
-							index
-						).open();
-					}));
-
-			// Add View Entries button for nested indices
-			if (index.nested) {
-				new Setting(buttonsContainer)
-					.setName('View Entry Relationships')
-					.setDesc('Create a canvas showing relationships between entries in this index')
-					.addButton(btn => btn
-						.setButtonText('View Entries')
-						.onClick(() => {
-							new IndexEntriesCanvasModal(
-								this.app,
-								this.plugin,
-								indexName,
-								index
-							).open();
-						}));
-			}
-
-			new Setting(indexDetails)
-				.setName('Nested')
-				.setDesc(index.nested ? 'Yes' : 'No')
-				.setClass('index-setting');
-				
-			new Setting(indexDetails)
-				.setName('Level')
-				.setDesc(index.level.toString())
-				.setClass('index-setting');
-			
-			if (index.parents && index.parents.length > 0) {
-				new Setting(indexDetails)
-					.setName('Parents')
-					.setDesc(index.parents.join(', '))
-					.setClass('index-setting');
-			}
-			
-			if (index.children && index.children.length > 0) {
-				new Setting(indexDetails)
-					.setName('Children')
-					.setDesc(index.children.join(', '))
-					.setClass('index-setting');
-			}
-			
-			// Show entries count
-			const entriesCount = Object.keys(index.entries).length;
-			new Setting(indexDetails)
-				.setName('Entries Count')
-				.setDesc(entriesCount.toString())
-				.setClass('index-setting');
-		});
-		
-		// Add Create Canvas button at the top of Indices Section
+		// Create Canvas button at the top
 		new Setting(indicesSection)
 			.setName('Visualize Index Relationships')
 			.setDesc('Create an Obsidian Canvas showing index relationships')
@@ -933,6 +890,191 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				.onClick(() => {
 					new IndexRelationshipsCanvasModal(this.app, this.plugin).open();
 				}));
+
+		// Group indices by their relationships
+		const indices = this.plugin.configManager.getAllIndices();
+		const processedIndices = new Set<string>();
+
+		// First process parent indices (level 0)
+		Object.entries(indices).forEach(([indexName, index]: [string, Index]) => {
+			if (index.level === 0 && index.children?.length) {
+				const childIndex = index.children[0];
+				const childData = indices[childIndex];
+				
+				if (!processedIndices.has(indexName) && !processedIndices.has(childIndex)) {
+					const indexDetails = indicesSection.createEl('details', {
+						cls: 'index-details'
+					});
+					indexDetails.createEl('summary', { text: `${indexName} → ${childIndex}` });
+					
+					// Add buttons container
+					const buttonsContainer = indexDetails.createEl('div', { 
+						cls: 'index-buttons',
+						attr: { style: 'display: flex; gap: 10px; margin-bottom: 10px;' }
+					});
+
+					// Parent index buttons
+					new Setting(buttonsContainer)
+						.setName(`Add New ${indexName} Entry`)
+						.setDesc(`Create a new entry in ${indexName} index`)
+						.addButton(btn => btn
+							.setButtonText('New Entry')
+							.setCta()
+							.onClick(() => {
+								new NewIndexEntryModal(
+									this.app,
+									this.plugin,
+									indexName,
+									index
+								).open();
+							}));
+
+					// Child index buttons
+					new Setting(buttonsContainer)
+						.setName(`Add New ${childIndex} Entry`)
+						.setDesc(`Create a new entry in ${childIndex} index`)
+						.addButton(btn => btn
+							.setButtonText('New Entry')
+							.setCta()
+							.onClick(() => {
+								new NewIndexEntryModal(
+									this.app,
+									this.plugin,
+									childIndex,
+									childData
+								).open();
+							}));
+
+					if (index.nested) {
+						new Setting(buttonsContainer)
+							.setName('View Entry Relationships')
+							.setDesc('Create a canvas showing relationships between entries')
+							.addButton(btn => btn
+								.setButtonText('View Entries')
+								.onClick(() => {
+									new IndexEntriesCanvasModal(
+										this.app,
+										this.plugin,
+										indexName,
+										index
+									).open();
+								}));
+					}
+
+					// Parent index details
+					const parentDetails = indexDetails.createEl('details', {
+						cls: 'nested-index-details'
+					});
+					parentDetails.createEl('summary', { text: indexName });
+					
+					new Setting(parentDetails)
+						.setName('Level')
+						.setDesc(index.level.toString())
+						.setClass('index-setting');
+					
+					new Setting(parentDetails)
+						.setName('Nested')
+						.setDesc(index.nested ? 'Yes' : 'No')
+						.setClass('index-setting');
+					
+					const entriesCount = Object.keys(index.entries).length;
+					new Setting(parentDetails)
+						.setName('Entries Count')
+						.setDesc(entriesCount.toString())
+						.setClass('index-setting');
+
+					// Child index details
+					const childDetails = indexDetails.createEl('details', {
+						cls: 'nested-index-details'
+					});
+					childDetails.createEl('summary', { text: childIndex });
+					
+					new Setting(childDetails)
+						.setName('Level')
+						.setDesc(childData.level.toString())
+						.setClass('index-setting');
+					
+					new Setting(childDetails)
+						.setName('Nested')
+						.setDesc(childData.nested ? 'Yes' : 'No')
+						.setClass('index-setting');
+					
+					const childEntriesCount = Object.keys(childData.entries).length;
+					new Setting(childDetails)
+						.setName('Entries Count')
+						.setDesc(childEntriesCount.toString())
+						.setClass('index-setting');
+
+					processedIndices.add(indexName);
+					processedIndices.add(childIndex);
+				}
+			}
+		});
+
+		// Then process standalone indices (no parent-child relationship)
+		Object.entries(indices).forEach(([indexName, index]: [string, Index]) => {
+			if (!processedIndices.has(indexName)) {
+				const indexDetails = indicesSection.createEl('details', {
+					cls: 'index-details'
+				});
+				indexDetails.createEl('summary', { text: indexName });
+				
+				// Add buttons container
+				const buttonsContainer = indexDetails.createEl('div', { 
+					cls: 'index-buttons',
+					attr: { style: 'display: flex; gap: 10px; margin-bottom: 10px;' }
+				});
+
+				new Setting(buttonsContainer)
+					.setName('Add New Entry')
+					.setDesc('Create a new entry in this index')
+					.addButton(btn => btn
+						.setButtonText('New Entry')
+						.setCta()
+						.onClick(() => {
+							new NewIndexEntryModal(
+								this.app,
+								this.plugin,
+								indexName,
+								index
+							).open();
+						}));
+
+				if (index.nested) {
+					new Setting(buttonsContainer)
+						.setName('View Entry Relationships')
+						.setDesc('Create a canvas showing relationships between entries')
+						.addButton(btn => btn
+							.setButtonText('View Entries')
+							.onClick(() => {
+								new IndexEntriesCanvasModal(
+									this.app,
+									this.plugin,
+									indexName,
+									index
+								).open();
+							}));
+				}
+
+				new Setting(indexDetails)
+					.setName('Level')
+					.setDesc(index.level.toString())
+					.setClass('index-setting');
+				
+				new Setting(indexDetails)
+					.setName('Nested')
+					.setDesc(index.nested ? 'Yes' : 'No')
+					.setClass('index-setting');
+				
+				const entriesCount = Object.keys(index.entries).length;
+				new Setting(indexDetails)
+					.setName('Entries Count')
+					.setDesc(entriesCount.toString())
+					.setClass('index-setting');
+
+				processedIndices.add(indexName);
+			}
+		});
 		
 		// Note Types Section
 		const noteTypesSection = containerEl.createEl('details', { cls: 'note-types-section' });
@@ -1105,48 +1247,70 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 			});
 			nestedSection.createEl('summary', { text: 'Nested Questions' });
 			
-			question.nest.forEach((nestedQ: Question) => {
+			question.nest.forEach((nestedQ: Question, index: number) => {
 				const nestedDetails = nestedSection.createEl('details', {
 					cls: 'nested-question-details'
 				});
-				nestedDetails.createEl('summary', { text: nestedQ.questionId });
+				nestedDetails.createEl('summary', { text: `Nested Question ${index + 1}: ${nestedQ.questionId}` });
 				
+				// Question ID
 				new Setting(nestedDetails)
 					.setName('Question ID')
 					.setDesc(nestedQ.questionId)
 					.setClass('nested-question-setting');
 					
+				// Answer ID - Show actual answerId or questionId if answerId is not set
 				new Setting(nestedDetails)
 					.setName('Answer ID')
-					.setDesc(nestedQ.answerId || 'N/A')
+					.setDesc(nestedQ.answerId || nestedQ.questionId)
 					.setClass('nested-question-setting');
 					
+				// Type
 				new Setting(nestedDetails)
 					.setName('Type')
-					.setDesc(nestedQ.type || 'N/A')
+					.setDesc(nestedQ.type || 'tpsuggester')
 					.setClass('nested-question-setting');
 					
+				// Prompt
 				new Setting(nestedDetails)
 					.setName('Prompt')
-					.setDesc(nestedQ.prompt || 'N/A')
+					.setDesc(nestedQ.prompt || 'No prompt specified')
 					.setClass('nested-question-setting');
 
+				// Index Name if present
+				if (nestedQ.indexName) {
+					new Setting(nestedDetails)
+						.setName('Index Name')
+						.setDesc(nestedQ.indexName)
+						.setClass('nested-question-setting');
+				}
+
+				// Show if manual entry is allowed
+				if (nestedQ.allowManualEntry !== undefined) {
+					new Setting(nestedDetails)
+						.setName('Allow Manual Entry')
+						.setDesc(nestedQ.allowManualEntry ? 'Yes' : 'No')
+						.setClass('nested-question-setting');
+				}
+
+				// Show if multiple selections are allowed
+				if (nestedQ.multipleSelections !== undefined) {
+					new Setting(nestedDetails)
+						.setName('Multiple Selections')
+						.setDesc(nestedQ.multipleSelections ? 'Yes' : 'No')
+						.setClass('nested-question-setting');
+				}
+
+				// Parent relationships
 				if (nestedQ.parents && nestedQ.parents.length > 0) {
 					new Setting(nestedDetails)
 						.setName('Parent Answer IDs')
 						.setDesc(nestedQ.parents.join(', '))
 						.setClass('nested-question-setting');
 				}
-				
-				if (nestedQ.frontMatterType) {
-					new Setting(nestedDetails)
-						.setName('Front Matter Type')
-						.setDesc(nestedQ.frontMatterType)
-						.setClass('nested-question-setting');
-				}
 
-				// Recursively display nested questions
-				if (nestedQ.type === 'nestedTpsuggester') {
+				// Recursively display nested questions if present
+				if (nestedQ.type === 'nestedTpsuggester' && nestedQ.nest) {
 					this.displayNestedQuestions(nestedDetails, nestedQ);
 				}
 			});
