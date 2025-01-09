@@ -2,67 +2,119 @@
 	"noteConfig": {
 		"noteTypes": [
 			{
-				"id": "ExampleNoteType",
-				"baseFrontMatterPath": "Path/To/Base/FrontMatter.md",
+				"id": "Academic",
+				"baseFrontMatterPath": "Templates/Academic Base Front Matter.md",
 				"subtypes": [
 					{
-						"id": "ExampleSubtype",
-						"folder": "Path/To/Folder",
-						"template": "Path/To/Template.md",
+						"id": "Subject",
+						"folder": "Subjects/{{subject}}",
+						"template": "Templates/Subject Template.md",
 						"frontMatter": [
 							{
-								"id": "exampleField",
-								"value": "{{placeholder}}",
+								"id": "type",
+								"value": "subject",
 								"type": "string"
+							},
+							{
+								"id": "topics",
+								"value": "{{topics}}",
+								"type": "array"
 							}
 						],
-						"questions": ["question1_id", "question2_id"],
-						"title": "{{placeholder}} Title"
+						"questions": ["subject_topic_question"],
+						"title": "{{subject}}"
+					},
+					{
+						"id": "Topic",
+						"folder": "Topics/{{subject}}/{{topic}}",
+						"template": "Templates/Topic Template.md",
+						"frontMatter": [
+							{
+								"id": "type",
+								"value": "topic",
+								"type": "string"
+							},
+							{
+								"id": "subject",
+								"value": "{{subject}}",
+								"type": "link"
+							},
+							{
+								"id": "resources",
+								"value": "{{resources}}",
+								"type": "array"
+							}
+						],
+						"questions": ["subject_selection", "topic_name", "resource_question"],
+						"title": "{{topic}}"
 					}
 				]
 			}
 		],
 		"questions": [
 			{
-				"questionId": "question1_id",
-				"answerId": "answer1",
-				"type": "inputPrompt",
-				"prompt": "Enter something:"
+				"questionId": "subject_topic_question",
+				"type": "nestedTpsuggester",
+				"indexName": "subject",
+				"nest": [
+					{
+						"questionId": "subject_name",
+						"answerId": "subject",
+						"prompt": "What subject is this?",
+						"allowManualEntry": true,
+						"createNewEntry": true,
+						"multipleSelections": false,
+						"frontMatterType": "link"
+					},
+					{
+						"questionId": "topic_selection",
+						"answerId": "topics",
+						"prompt": "What topics are covered?",
+						"allowManualEntry": true,
+						"createNewEntry": true,
+						"multipleSelections": true,
+						"parentAnswerId": "subject",
+						"frontMatterType": "link"
+					}
+				]
 			},
 			{
-				"questionId": "question2_id",
-				"answerId": "answer2",
+				"questionId": "subject_selection",
+				"answerId": "subject",
 				"type": "tpsuggester",
-				"prompt": "Select something:",
-				"indexName": "exampleIndex",
-				"allowManualEntry": true,
-				"createNewEntry": true,
-				"newEntryNoteType": "ExampleNoteType",
-				"newEntryNoteSubtype": "ExampleSubtype",
+				"prompt": "Select the subject:",
+				"indexName": "subject",
+				"allowManualEntry": false,
 				"multipleSelections": false
 			},
 			{
-				"questionId": "question3_id",
+				"questionId": "topic_name",
+				"answerId": "topic",
+				"type": "inputPrompt",
+				"prompt": "Enter the topic name:"
+			},
+			{
+				"questionId": "resource_question",
 				"type": "nestedTpsuggester",
-				"indexName": "parentIndex",
+				"indexName": "resource",
 				"nest": [
 					{
-						"questionId": "nestedQuestion1_id",
-						"answerId": "nestedAnswer1",
-						"prompt": "Select parent:",
-						"allowManualEntry": true,
-						"createNewEntry": true,
-						"newEntryNoteType": "ParentNoteType",
-						"newEntryNoteSubtype": "ParentSubtype"
+						"questionId": "resource_type",
+						"answerId": "resource_type",
+						"prompt": "What type of resource?",
+						"choices": ["Book", "Video", "Article"],
+						"allowManualEntry": false,
+						"multipleSelections": false
 					},
 					{
-						"questionId": "nestedQuestion2_id",
-						"answerId": "nestedAnswer2",
-						"prompt": "Select child:",
+						"questionId": "resource_name",
+						"answerId": "resources",
+						"prompt": "Enter resource name:",
 						"allowManualEntry": true,
 						"createNewEntry": true,
-						"newEntryNoteType": "ChildNoteType",
-						"newEntryNoteSubtype": "ChildSubtype"
+						"multipleSelections": true,
+						"parentAnswerId": "resource_type",
+						"frontMatterType": "link"
 					}
 				]
 			}
@@ -70,21 +122,70 @@
 	},
 	"indexConfig": {
 		"indices": {
-			"exampleIndex": {
-				"nested": false,
-				"entries": {}
-			},
-			"parentIndex": {
+			"subject": {
 				"nested": true,
 				"level": 0,
-				"children": ["childIndex"],
-				"entries": {}
+				"children": ["topic", "resource"],
+				"entries": {
+					"Mathematics": {
+						"metadata": {
+							"level": 0,
+							"parents": []
+						},
+						"children": {
+							"topic": ["Calculus", "Linear Algebra"],
+							"resource": ["Textbook A", "Video Series B"]
+						}
+					},
+					"Computer Science": {
+						"metadata": {
+							"level": 0,
+							"parents": []
+						},
+						"children": {
+							"topic": ["Machine Learning", "Data Structures"],
+							"resource": ["Online Course A", "Reference Book B"]
+						}
+					}
+				}
 			},
-			"childIndex": {
+			"topic": {
 				"nested": true,
 				"level": 1,
-				"parents": ["parentIndex"],
-				"entries": {}
+				"parents": ["subject"],
+				"entries": {
+					"Machine Learning": {
+						"metadata": {
+							"level": 1,
+							"parents": ["Computer Science", "Mathematics"]
+						}
+					},
+					"Linear Algebra": {
+						"metadata": {
+							"level": 1,
+							"parents": ["Mathematics"]
+						}
+					}
+				}
+			},
+			"resource": {
+				"nested": true,
+				"level": 1,
+				"parents": ["subject"],
+				"entries": {
+					"Textbook A": {
+						"metadata": {
+							"level": 1,
+							"parents": ["Mathematics"]
+						}
+					},
+					"Online Course A": {
+						"metadata": {
+							"level": 1,
+							"parents": ["Computer Science"]
+						}
+					}
+				}
 			}
 		}
 	}
