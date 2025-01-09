@@ -1,453 +1,570 @@
 {
-	"noteConfig": {
-		"noteTypes": [
-			{
-				"id": "Homepage",
-				"baseFrontMatterPath": "Templates/Homepage Base Front Matter.md",
-				"subtypes": [
-					{
-						"id": "Subject",
-						"folder": "Tutoring/Subjects/{{subject_name}}",
-						"template": "Templates/Subject Homepage Template - Body v0.1.md",
-						"frontMatter": [
-							{
-								"id": "tags",
-								"value": "homepage/subject",
-								"type": "string"
-							},
-							{
-								"id": "alias",
-								"value": "{{subject_name}}",
-								"type": "string"
-							},
-							{
-								"id": "active",
-								"value": "TRUE",
-								"type": "string"
-							}
-						],
-						"indexName": "subject",
-						"questions": ["subject_name_question"],
-						"title": "{{subject_name}} Homepage"
-					},
-					{
-						"id": "Student",
-						"folder": "Tutoring/Students/{{student_name}}",
-						"template": "Templates/Student Homepage Template - Body V5.1.md",
-						"frontMatter": [
-							{
-								"id": "tags",
-								"value": "homepage/student",
-								"type": "string"
-							},
-							{
-								"id": "alias",
-								"value": "{{student_name}}",
-								"type": "string"
-							},
-							{
-								"id": "active",
-								"value": "TRUE",
-								"type": "string"
-							},
-							{
-								"id": "university",
-								"value": "{{university}} Homepage|{{university}}",
-								"type": "link"
-							},
-							{
-								"id": "course",
-								"value": "{{course}}",
-								"type": "link"
-							}
-						],
-						"indexName": "student",
-						"questions": [
-							"student_name_question",
-							"student_email_question",
-							"university_course_for_student_homepage",
-							"tutor_name_question"
-						],
-						"title": "{{student_name}}'s Homepage"
-					},
-					{
-						"id": "University",
-						"folder": "Tutoring/Universities/{{university}}",
-						"template": "Templates/University Homepage Template - Body v0.1.md",
-						"indexName": "university_courses_index.json",
-						"questions": ["university_name_question"],
-						"frontMatter": [
-							{
-								"id": "tags",
-								"value": "homepage/university",
-								"type": "string"
-							},
-							{
-								"id": "alias",
-								"value": "{{university}}",
-								"type": "string"
-							}
-						],
-						"title": "{{university}} Homepage"
-					},
-					{
-						"id": "Course",
-						"folder": "Tutoring/Universities/{{university}}",
-						"template": "Templates/Course Homepage Template - Body v0.1.md",
-						"indexName": "course",
-						"questions": ["university_course_for_course_homepage"],
-						"frontMatter": [
-							{
-								"id": "tags",
-								"value": "homepage/course",
-								"type": "string"
-							},
-							{
-								"id": "alias",
-								"value": "{{course}}",
-								"type": "string"
-							},
-							{
-								"id": "university",
-								"value": "{{university}}",
-								"type": "link"
-							}
-						],
-						"title": "{{university}} - {{course}} Homepage"
-					},
-					{
-						"id": "Tutor",
-						"folder": "Tutoring/Tutors",
-						"template": "Templates/Tutor Homepage Template - Body v0.1.md",
-						"indexName": "tutor",
-						"questions": ["tutor_name_question"],
-						"frontMatter": [
-							{
-								"id": "tags",
-								"value": "homepage/tutor",
-								"type": "string"
-							},
-							{
-								"id": "alias",
-								"value": "{{tutor}}",
-								"type": "string"
-							}
-						],
-						"title": "{{tutor}}'s Homepage"
-					}
-				]
-			},
-			{
-				"id": "General Note",
-				"baseFrontMatterPath": "Templates/General Base Front Matter.md",
-				"subtypes": [
-					{
-						"id": "Tutoring Note",
-						"template": "Templates/New Student Note Template - Body v0.1.md",
-						"questions": ["author_question", "subject_topic_note"],
-						"frontMatter": [
-							{
-								"id": "tags",
-								"value": "note/tutoring",
-								"type": "string"
-							},
-							{
-								"id": "author",
-								"value": "{{author}}",
-								"type": "string"
-							},
-							{
-								"id": "subject",
-								"value": "{{subject_name}}",
-								"type": "link"
-							},
-							{
-								"id": "topic",
-								"value": "{{topic_name}}",
-								"type": "link"
-							}
-						],
-						"title": "{{subject_name}} - {{topic_name}}"
-					}
-				]
-			}
-		],
-		"questions": [
-			{
-				"questionId": "student_name_question",
-				"answerId": "student_name",
-				"type": "inputPrompt",
-				"prompt": "Enter the student's name:",
-				"frontMatterType": "link"
-			},
-			{
-				"questionId": "student_email_question",
-				"answerId": "student_email",
-				"type": "inputPrompt",
-				"prompt": "Enter the student's email address:"
-			},
-			{
-				"questionId": "university_name_question",
-				"answerId": "university",
-				"type": "tpsuggester",
-				"prompt": "Enter the name of the university:",
-				"indexName": "university",
-				"allowManualEntry": true,
-				"createNewEntry": false,
-				"multipleSelections": false
-			},
-			{
-				"questionId": "course_name_question",
-				"answerId": "course",
-				"type": "nestedTpsuggester",
-				"indexName": "course",
-				"parentAnswerId": "university",
-				"prompt": "What is the name of the course?",
-				"allowManualEntry": true,
-				"createNewEntry": true,
-				"newEntryNoteType": "Homepage",
-				"newEntryNoteSubtype": "Course",
-				"multipleSelections": false
-			},
-			{
-				"questionId": "university_course_for_student_homepage",
-				"type": "nestedTpsuggester",
-				"indexName": "university",
-				"frontMatterType": "link",
-				"nest": [
-					{
-						"questionId": "university_name_question",
-						"answerId": "university",
-						"prompt": "What university is {{student_name}} studying at?",
-						"allowManualEntry": true,
-						"createNewEntry": true,
-						"newEntryNoteType": "Homepage",
-						"newEntryNoteSubtype": "University",
-						"multipleSelections": false,
-						"frontMatterType": "link"
-					},
-					{
-						"questionId": "course_name_question",
-						"answerId": "course",
-						"prompt": "What course/s is {{student_name}} taking?",
-						"allowManualEntry": true,
-						"createNewEntry": true,
-						"newEntryNoteType": "Homepage",
-						"newEntryNoteSubtype": "Course",
-						"multipleSelections": true,
-						"frontMatterType": "link",
-						"parents": ["university"]
-					}
-				]
-			},
-			{
-				"questionId": "university_course_for_course_homepage",
-				"type": "nestedTpsuggester",
-				"indexName": "university",
-				"frontMatterType": "link",
-				"nest": [
-					{
-						"questionId": "university_name_question",
-						"answerId": "university",
-						"prompt": "What university gives this course?",
-						"allowManualEntry": true,
-						"createNewEntry": true,
-						"newEntryNoteType": "Homepage",
-						"newEntryNoteSubtype": "University",
-						"multipleSelections": false,
-						"frontMatterType": "link"
-					},
-					{
-						"questionId": "course_name_question",
-						"answerId": "course",
-						"prompt": "What is the name of the course? (No special characters)",
-						"allowManualEntry": true,
-						"createNewEntry": true,
-						"newEntryNoteType": "Homepage",
-						"newEntryNoteSubtype": "Course",
-						"multipleSelections": true,
-						"frontMatterType": "link",
-						"parents": ["university"]
-					}
-				]
-			},
-			{
-				"questionId": "subject_topic_note",
-				"type": "nestedTpsuggester",
-				"indexName": "subject",
-				"nest": [
-					{
-						"questionId": "subject_name_question",
-						"answerId": "subject_name",
-						"prompt": "What subject is this note on?",
-						"allowManualEntry": true,
-						"createNewEntry": true,
-						"newEntryNoteType": "Homepage",
-						"newEntryNoteSubtype": "Subject",
-						"multipleSelections": false,
-						"frontMatterType": "link"
-					},
-					{
-						"questionId": "topic_name_question",
-						"answerId": "topic_name",
-						"prompt": "What topic within the subject is this note on?",
-						"allowManualEntry": true,
-						"createNewEntry": true,
-						"newEntryNoteType": "Homepage",
-						"newEntryNoteSubtype": "Topic",
-						"multipleSelections": true,
-						"parentAnswerId": "subject_name",
-						"frontMatterType": "link"
-					}
-				]
-			},
-			{
-				"questionId": "tutor_name_question",
-				"answerId": "tutor",
-				"type": "tpsuggester",
-				"indexName": "tutor",
-				"prompt": "Enter the name of the tutor:",
-				"allowManualEntry": true,
-				"createNewEntry": true,
-				"multipleSelections": false
-			},
-			{
-				"questionId": "author_question",
-				"answerId": "author",
-				"type": "tpsuggester",
-				"indexName": "tutor",
-				"prompt": "Who is the author of this note?",
-				"allowManualEntry": true,
-				"createNewEntry": false,
-				"multipleSelections": false
-			},
-			{
-				"questionId": "subject_name_question",
-				"answerId": "subject_name",
-				"type": "inputPrompt",
-				"prompt": "Enter the name of the subject:",
-				"frontMatterType": "link"
-			}
-		]
-	},
-	"indexConfig": {
-		"indices": {
-			"university": {
-				"nested": true,
-				"level": 0,
-				"children": ["course"],
-				"entries": {
-					"universityA": {
-						"metadata": {
-							"level": 0
-						},
-						"children": {
-							"course": ["courseA"]
-						}
-					},
-					"universityB": {
-						"metadata": {
-							"level": 0
-						},
-						"children": {
-							"course": ["courseB"]
-						}
-					}
-				}
-			},
-			"course": {
-				"nested": true,
-				"level": 1,
-				"parents": ["university"],
-				"entries": {
-					"courseA": {
-						"metadata": {
-							"level": 1,
-							"parents": ["universityA"]
-						}
-					},
-					"courseB": {
-						"metadata": {
-							"level": 1,
-							"parents": ["universityB"]
-						}
-					}
-				}
-			},
-			"student": {
-				"nested": false,
-				"level": 0,
-				"entries": {
-					"studentA": {
-						"metadata": {
-							"level": 0
-						}
-					},
-					"studentB": {
-						"metadata": {
-							"level": 0
-						}
-					}
-				}
-			},
-			"tutor": {
-				"nested": false,
-				"level": 0,
-				"entries": {
-					"TutorA": {
-						"metadata": {
-							"level": 0
-						}
-					},
-					"TutorB": {
-						"metadata": {
-							"level": 0
-						}
-					}
-				}
-			},
-			"subject": {
-				"nested": true,
-				"level": 0,
-				"children": ["topic"],
-				"entries": {
-					"subjectA": {
-						"metadata": {
-							"level": 0
-						},
-						"children": {
-							"topic": ["topicA"]
-						}
-					},
-					"subjectB": {
-						"metadata": {
-							"level": 0
-						},
-						"children": {
-							"topic": ["topicB"]
-						}
-					}
-				}
-			},
-			"topic": {
-				"nested": true,
-				"level": 1,
-				"parents": ["subject"],
-				"entries": {
-					"topicA": {
-						"metadata": {
-							"level": 1,
-							"parents": ["subjectA"]
-						}
-					},
-					"topicB": {
-						"metadata": {
-							"level": 1,
-							"parents": ["subjectB"]
-						}
-					}
-				}
-			}
-		}
-	}
+  "noteConfig": {
+    "noteTypes": [
+      {
+        "id": "Homepage",
+        "baseFrontMatterPath": "Templates/Homepage Base Front Matter.md",
+        "subtypes": [
+          {
+            "id": "Subject",
+            "folder": "Tutoring/Subjects/{{subject_name}}",
+            "template": "Templates/Subject Homepage Template - Body v0.1.md",
+            "frontMatter": [
+              {
+                "id": "tags",
+                "value": "homepage/subject",
+                "type": "string"
+              },
+              {
+                "id": "alias",
+                "value": "{{subject_name}}",
+                "type": "string"
+              },
+              {
+                "id": "active",
+                "value": "TRUE",
+                "type": "string"
+              }
+            ],
+            "indexName": "subject",
+            "questions": [
+              "subject_name_question"
+            ],
+            "title": "{{subject_name}} Homepage"
+          },
+          {
+            "id": "Student",
+            "folder": "Tutoring/Students/{{student_name}}",
+            "template": "Templates/Student Homepage Template - Body V5.1.md",
+            "frontMatter": [
+              {
+                "id": "tags",
+                "value": "homepage/student",
+                "type": "string"
+              },
+              {
+                "id": "alias",
+                "value": "{{student_name}}",
+                "type": "string"
+              },
+              {
+                "id": "active",
+                "value": "TRUE",
+                "type": "string"
+              },
+              {
+                "id": "university",
+                "value": "{{university}} Homepage|{{university}}",
+                "type": "link"
+              },
+              {
+                "id": "course",
+                "value": "{{course}}",
+                "type": "link"
+              }
+            ],
+            "indexName": "student",
+            "questions": [
+              "student_name_question",
+              "student_email_question",
+              "university_course_for_student_homepage",
+              "tutor_name_question"
+            ],
+            "title": "{{student_name}}'s Homepage"
+          },
+          {
+            "id": "University",
+            "folder": "Tutoring/Universities/{{university}}",
+            "template": "Templates/University Homepage Template - Body v0.1.md",
+            "indexName": "university_courses_index.json",
+            "questions": [
+              "university_name_question"
+            ],
+            "frontMatter": [
+              {
+                "id": "tags",
+                "value": "homepage/university",
+                "type": "string"
+              },
+              {
+                "id": "alias",
+                "value": "{{university}}",
+                "type": "string"
+              }
+            ],
+            "title": "{{university}} Homepage"
+          },
+          {
+            "id": "Course",
+            "folder": "Tutoring/Universities/{{university}}",
+            "template": "Templates/Course Homepage Template - Body v0.1.md",
+            "indexName": "course",
+            "questions": [
+              "university_course_for_course_homepage"
+            ],
+            "frontMatter": [
+              {
+                "id": "tags",
+                "value": "homepage/course",
+                "type": "string"
+              },
+              {
+                "id": "alias",
+                "value": "{{course}}",
+                "type": "string"
+              },
+              {
+                "id": "university",
+                "value": "{{university}}",
+                "type": "link"
+              }
+            ],
+            "title": "{{university}} - {{course}} Homepage"
+          },
+          {
+            "id": "Tutor",
+            "folder": "Tutoring/Tutors",
+            "template": "Templates/Tutor Homepage Template - Body v0.1.md",
+            "indexName": "tutor",
+            "questions": [
+              "tutor_name_question"
+            ],
+            "frontMatter": [
+              {
+                "id": "tags",
+                "value": "homepage/tutor",
+                "type": "string"
+              },
+              {
+                "id": "alias",
+                "value": "{{tutor}}",
+                "type": "string"
+              }
+            ],
+            "title": "{{tutor}}'s Homepage"
+          }
+        ]
+      },
+      {
+        "id": "General Note",
+        "baseFrontMatterPath": "Templates/General Base Front Matter.md",
+        "subtypes": [
+          {
+            "id": "Tutoring Note",
+            "template": "Templates/New Student Note Template - Body v0.1.md",
+            "questions": [
+              "author_question",
+              "subject_topic_note"
+            ],
+            "frontMatter": [
+              {
+                "id": "tags",
+                "value": "note/tutoring",
+                "type": "string"
+              },
+              {
+                "id": "author",
+                "value": "{{author}}",
+                "type": "string"
+              },
+              {
+                "id": "subject",
+                "value": "{{subject_name}}",
+                "type": "link"
+              },
+              {
+                "id": "topic",
+                "value": "{{topic_name}}",
+                "type": "link"
+              }
+            ],
+            "title": "{{subject_name}} - {{topic_name}}"
+          }
+        ]
+      }
+    ],
+    "questions": [
+      {
+        "questionId": "student_name_question",
+        "answerId": "student_name",
+        "type": "inputPrompt",
+        "prompt": "Enter the student's name:",
+        "frontMatterType": "link"
+      },
+      {
+        "questionId": "student_email_question",
+        "answerId": "student_email",
+        "type": "inputPrompt",
+        "prompt": "Enter the student's email address:"
+      },
+      {
+        "questionId": "university_name_question",
+        "answerId": "university",
+        "type": "tpsuggester",
+        "prompt": "Enter the name of the university:",
+        "indexName": "university",
+        "allowManualEntry": true,
+        "createNewEntry": false,
+        "multipleSelections": false
+      },
+      {
+        "questionId": "course_name_question",
+        "answerId": "course",
+        "type": "nestedTpsuggester",
+        "indexName": "course",
+        "parentAnswerId": "university",
+        "prompt": "What is the name of the course?",
+        "allowManualEntry": true,
+        "createNewEntry": true,
+        "newEntryNoteType": "Homepage",
+        "newEntryNoteSubtype": "Course",
+        "multipleSelections": false
+      },
+      {
+        "questionId": "university_course_for_student_homepage",
+        "type": "nestedTpsuggester",
+        "indexName": "university",
+        "frontMatterType": "link",
+        "nest": [
+          {
+            "questionId": "university_name_question",
+            "answerId": "university",
+            "prompt": "What university is {{student_name}} studying at?",
+            "allowManualEntry": true,
+            "createNewEntry": true,
+            "newEntryNoteType": "Homepage",
+            "newEntryNoteSubtype": "University",
+            "multipleSelections": false,
+            "frontMatterType": "link"
+          },
+          {
+            "questionId": "course_name_question",
+            "answerId": "course",
+            "prompt": "What course/s is {{student_name}} taking?",
+            "allowManualEntry": true,
+            "createNewEntry": true,
+            "newEntryNoteType": "Homepage",
+            "newEntryNoteSubtype": "Course",
+            "multipleSelections": true,
+            "frontMatterType": "link",
+            "parents": [
+              "university"
+            ]
+          }
+        ]
+      },
+      {
+        "questionId": "university_course_for_course_homepage",
+        "type": "nestedTpsuggester",
+        "indexName": "university",
+        "frontMatterType": "link",
+        "nest": [
+          {
+            "questionId": "university_name_question",
+            "answerId": "university",
+            "prompt": "What university gives this course?",
+            "allowManualEntry": true,
+            "createNewEntry": true,
+            "newEntryNoteType": "Homepage",
+            "newEntryNoteSubtype": "University",
+            "multipleSelections": false,
+            "frontMatterType": "link"
+          },
+          {
+            "questionId": "course_name_question",
+            "answerId": "course",
+            "prompt": "What is the name of the course? (No special characters)",
+            "allowManualEntry": true,
+            "createNewEntry": true,
+            "newEntryNoteType": "Homepage",
+            "newEntryNoteSubtype": "Course",
+            "multipleSelections": true,
+            "frontMatterType": "link",
+            "parents": [
+              "university"
+            ]
+          }
+        ]
+      },
+      {
+        "questionId": "subject_topic_note",
+        "type": "nestedTpsuggester",
+        "indexName": "subject",
+        "nest": [
+          {
+            "questionId": "subject_name_question",
+            "answerId": "subject_name",
+            "prompt": "What subject is this note on?",
+            "allowManualEntry": true,
+            "createNewEntry": true,
+            "newEntryNoteType": "Homepage",
+            "newEntryNoteSubtype": "Subject",
+            "multipleSelections": false,
+            "frontMatterType": "link"
+          },
+          {
+            "questionId": "topic_name_question",
+            "answerId": "topic_name",
+            "prompt": "What topic within the subject is this note on?",
+            "allowManualEntry": true,
+            "createNewEntry": true,
+            "newEntryNoteType": "Homepage",
+            "newEntryNoteSubtype": "Topic",
+            "multipleSelections": true,
+            "parentAnswerId": "subject_name",
+            "frontMatterType": "link"
+          }
+        ]
+      },
+      {
+        "questionId": "tutor_name_question",
+        "answerId": "tutor",
+        "type": "tpsuggester",
+        "indexName": "tutor",
+        "prompt": "Enter the name of the tutor:",
+        "allowManualEntry": true,
+        "createNewEntry": true,
+        "multipleSelections": false
+      },
+      {
+        "questionId": "author_question",
+        "answerId": "author",
+        "type": "tpsuggester",
+        "indexName": "tutor",
+        "prompt": "Who is the author of this note?",
+        "allowManualEntry": true,
+        "createNewEntry": false,
+        "multipleSelections": false
+      },
+      {
+        "questionId": "subject_name_question",
+        "answerId": "subject_name",
+        "type": "inputPrompt",
+        "prompt": "Enter the name of the subject:",
+        "frontMatterType": "link"
+      }
+    ]
+  },
+  "indexConfig": {
+    "indices": {
+      "university": {
+        "nested": true,
+        "level": 0,
+        "children": [
+          "course"
+        ],
+        "entries": {
+          "universityA": {
+            "metadata": {
+              "level": 0
+            },
+            "children": {
+              "course": [
+                "courseA"
+              ]
+            }
+          },
+          "universityB": {
+            "metadata": {
+              "level": 0
+            },
+            "children": {
+              "course": [
+                "courseB",
+                "New Course for existing university"
+              ]
+            }
+          },
+          "universityA new": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            }
+          },
+          "universityA new v2": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            },
+            "children": {
+              "course": [
+                "courseA new uni v2",
+                "Course v3"
+              ]
+            }
+          }
+        }
+      },
+      "course": {
+        "nested": true,
+        "level": 1,
+        "parents": [
+          "university"
+        ],
+        "entries": {
+          "courseA": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA"
+              ]
+            }
+          },
+          "courseB": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityB"
+              ]
+            }
+          },
+          "courseA new": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA"
+              ]
+            }
+          },
+          "New CourseA UniA new": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA new"
+              ]
+            }
+          },
+          "courseA new uni v2": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA new v2"
+              ]
+            }
+          },
+          "Course v3": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityA new v2"
+              ]
+            }
+          },
+          "New Course for existing university": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityB"
+              ]
+            }
+          }
+        }
+      },
+      "student": {
+        "nested": false,
+        "level": 0,
+        "entries": {
+          "studentA": {
+            "metadata": {
+              "level": 0
+            }
+          },
+          "studentB": {
+            "metadata": {
+              "level": 0
+            }
+          }
+        }
+      },
+      "tutor": {
+        "nested": false,
+        "level": 0,
+        "entries": {
+          "TutorA": {
+            "metadata": {
+              "level": 0
+            }
+          },
+          "TutorB": {
+            "metadata": {
+              "level": 0
+            }
+          }
+        }
+      },
+      "subject": {
+        "nested": true,
+        "level": 0,
+        "children": [
+          "topic"
+        ],
+        "entries": {
+          "subjectA": {
+            "metadata": {
+              "level": 0
+            },
+            "children": {
+              "topic": [
+                "topicA"
+              ]
+            }
+          },
+          "subjectB": {
+            "metadata": {
+              "level": 0
+            },
+            "children": {
+              "topic": [
+                "topicB"
+              ]
+            }
+          },
+          "new Subject": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            },
+            "children": {
+              "topic": [
+                "New Topic Entry"
+              ]
+            }
+          }
+        }
+      },
+      "topic": {
+        "nested": true,
+        "level": 1,
+        "parents": [
+          "subject"
+        ],
+        "entries": {
+          "topicA": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "subjectA"
+              ]
+            }
+          },
+          "topicB": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "subjectB"
+              ]
+            }
+          },
+          "New Topic Entry": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "new Subject"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
 }
