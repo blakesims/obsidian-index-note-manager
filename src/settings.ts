@@ -23,7 +23,7 @@ class NewIndexEntryModal extends Modal {
 	private indexName: string;
 	private index: Index;
 	private plugin: IndexNoteManagerPlugin;
-	private entryName: string = "";
+	private entryName = "";
 	private parentEntry: string | null = null;
 
 	constructor(
@@ -234,27 +234,36 @@ class NewNoteTypeModal extends Modal {
 	}
 }
 
+interface NewSubtypeModalData {
+    questionId: string;
+    answerId: string;
+    prompt: string;
+}
+
 class NewSubtypeModal extends Modal {
+	private modalData: NewSubtypeModalData = {
+        questionId: "",
+        answerId: "",
+        prompt: ""
+    };
+    
 	private plugin: IndexNoteManagerPlugin;
 	private noteTypeId: string;
-	private subtypeId: string = "";
-	private folder: string = "";
-	private template: string = "";
+	private subtypeId = "";
+	private folder = "";
+	private template = "";
 	private selectedQuestions: string[] = [];
 	private frontMatterFields: FrontMatterField[] = [];
 	private frontMatterContainer: HTMLElement;
-	private settingsTab: IndexNoteManagerSettingTab;
 
 	constructor(
 		app: App,
 		plugin: IndexNoteManagerPlugin,
-		noteTypeId: string,
-		settingsTab: IndexNoteManagerSettingTab
+		noteTypeId: string
 	) {
 		super(app);
 		this.plugin = plugin;
 		this.noteTypeId = noteTypeId;
-		this.settingsTab = settingsTab;
 	}
 
 	onOpen() {
@@ -584,16 +593,15 @@ class NewSubtypeModal extends Modal {
 						.addOption("datetime", "Date & Time (YYYY-MM-DDTHH:mm)")
 						.addOption("templater", "Templater Function")
 						.setValue(field.type)
-						.onChange(async (value) => {
-							this.frontMatterFields[index].type = value as FrontMatterType;
-							// If type is templater, show templater function input
+						.onChange((value) => {
+							field.type = value as FrontMatterType;
 							if (value === "templater") {
 								this.showTemplaterFunctionInput(
 									fieldContainer,
 									field,
 								);
 							}
-							await this.plugin.configManager.saveData();
+							this.plugin.configManager.saveData();
 						}),
 				);
 
@@ -645,10 +653,10 @@ class NewSubtypeModal extends Modal {
 				text
 					.setPlaceholder("<% tp.file.creation_date() %>")
 					.setValue(field.templaterFunction || "")
-					.onChange(async (value) => {
+					.onChange((value) => {
 						field.templaterFunction = value;
 						field.value = value; // Set the value to the templater function
-						await this.plugin.configManager.saveData();
+						this.plugin.configManager.saveData();
 					}),
 			);
 	}
@@ -672,7 +680,7 @@ class NewSubtypeModal extends Modal {
 		});
 
 		if (placeholders) {
-			const pre = modal.contentEl.createEl("pre", {
+			modal.contentEl.createEl("pre", {
 				text: placeholders,
 				attr: { style: "background-color: var(--background-secondary); padding: 10px; border-radius: 5px;" }
 			});
@@ -699,8 +707,7 @@ class NewSubtypeModal extends Modal {
 			.addText(text => text
 				.setPlaceholder("e.g., student_name_question")
 				.onChange(value => {
-					// Store value for later
-					(modal as any).questionId = value;
+					this.modalData.questionId = value;
 				}));
 
 		// Answer ID
@@ -710,8 +717,7 @@ class NewSubtypeModal extends Modal {
 			.addText(text => text
 				.setPlaceholder("e.g., student_name")
 				.onChange(value => {
-					// Store value for later
-					(modal as any).answerId = value;
+					this.modalData.answerId = value;
 				}));
 
 		// Prompt
@@ -721,8 +727,7 @@ class NewSubtypeModal extends Modal {
 			.addText(text => text
 				.setPlaceholder("e.g., What is the student's name?")
 				.onChange(value => {
-					// Store value for later
-					(modal as any).prompt = value;
+					this.modalData.prompt = value;
 				}));
 
 		// Save button
@@ -731,10 +736,7 @@ class NewSubtypeModal extends Modal {
 				.setButtonText("Save")
 				.setCta()
 				.onClick(async () => {
-					const questionId = (modal as any).questionId;
-					const answerId = (modal as any).answerId;
-					const prompt = (modal as any).prompt;
-
+					const { questionId, answerId, prompt } = this.modalData;
 					if (!questionId || !answerId || !prompt) {
 						new Notice("Please fill in all fields");
 						return;
@@ -1181,8 +1183,8 @@ class IndexEntriesCanvasModal extends Modal {
 class NewIndexModal extends Modal {
 	private plugin: IndexNoteManagerPlugin;
 	private indexId: string = "";
-	private isNested: boolean = false;
-	private level: number = 0;
+	private isNested = false;
+	private level = 0;
 	private parentIndex: string | null = null;
 	private dynamicFieldsContainer: HTMLElement;
 
@@ -1376,90 +1378,96 @@ class NewIndexModal extends Modal {
 	}
 }
 
+interface NewQuestionModalData {
+    questionId: string;
+    answerId: string;
+    prompt: string;
+}
+
 class NewQuestionModal extends Modal {
-	private plugin: IndexNoteManagerPlugin;
-	private settingsTab: IndexNoteManagerSettingTab;
+    private data: NewQuestionModalData = {
+        questionId: "",
+        answerId: "",
+        prompt: ""
+    };
+    
+    private plugin: IndexNoteManagerPlugin;
+    private settingsTab: IndexNoteManagerSettingTab;
 
-	constructor(app: App, plugin: IndexNoteManagerPlugin, settingsTab: IndexNoteManagerSettingTab) {
-		super(app);
-		this.plugin = plugin;
-		this.settingsTab = settingsTab;
-	}
+    constructor(app: App, plugin: IndexNoteManagerPlugin, settingsTab: IndexNoteManagerSettingTab) {
+        super(app);
+        this.plugin = plugin;
+        this.settingsTab = settingsTab;
+    }
 
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.empty();
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
 
-		contentEl.createEl("h2", { text: "Add New Question" });
+        contentEl.createEl("h2", { text: "Add New Question" });
 
-		// Question ID
-		new Setting(contentEl)
-			.setName("Question ID")
-			.setDesc("A unique identifier for this question")
-			.addText(text => text
-					.setPlaceholder("e.g., student_name_question")
-				.onChange(value => {
-					// Store value for later
-					(this as any).questionId = value;
-				}));
+        // Question ID
+        new Setting(contentEl)
+            .setName("Question ID")
+            .setDesc("A unique identifier for this question")
+            .addText(text => text
+                .setPlaceholder("e.g., student_name_question")
+                .onChange(value => {
+                    this.data.questionId = value;
+                }));
 
-		// Answer ID
-		new Setting(contentEl)
-			.setName("Answer ID")
-			.setDesc("The ID used to reference this answer in placeholders")
-			.addText(text => text
-				.setPlaceholder("e.g., student_name")
-				.onChange(value => {
-					// Store value for later
-					(this as any).answerId = value;
-				}));
+        // Answer ID
+        new Setting(contentEl)
+            .setName("Answer ID")
+            .setDesc("The ID used to reference this answer in placeholders")
+            .addText(text => text
+                .setPlaceholder("e.g., student_name")
+                .onChange(value => {
+                    this.data.answerId = value;
+                }));
 
-		// Prompt
-		new Setting(contentEl)
-			.setName("Prompt")
-			.setDesc("The question to ask the user")
-			.addText(text => text
-				.setPlaceholder("e.g., What is the student's name?")
-				.onChange(value => {
-					// Store value for later
-					(this as any).prompt = value;
-				}));
+        // Prompt
+        new Setting(contentEl)
+            .setName("Prompt")
+            .setDesc("The question to ask the user")
+            .addText(text => text
+                .setPlaceholder("e.g., What is the student's name?")
+                .onChange(value => {
+                    this.data.prompt = value;
+                }));
 
-		// Save button
-		new Setting(contentEl)
-			.addButton(btn => btn
-				.setButtonText("Save")
-				.setCta()
-				.onClick(async () => {
-					const questionId = (this as any).questionId;
-					const answerId = (this as any).answerId;
-					const prompt = (this as any).prompt;
+        // Save button
+        new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText("Save")
+                .setCta()
+                .onClick(async () => {
+                    const { questionId, answerId, prompt } = this.data;
+                    if (!questionId || !answerId || !prompt) {
+                        new Notice("Please fill in all fields");
+                        return;
+                    }
 
-					if (!questionId || !answerId || !prompt) {
-						new Notice("Please fill in all fields");
-						return;
-					}
+                    const newQuestion: Question = {
+                        questionId,
+                        answerId,
+                        type: "inputPrompt",
+                        prompt
+                    };
 
-					const newQuestion: Question = {
-						questionId,
-						answerId,
-						type: "inputPrompt",
-						prompt
-					};
+                    const noteConfig = this.plugin.configManager.getNoteConfig();
+                    noteConfig.questions.push(newQuestion);
+                    await this.plugin.configManager.saveData();
 
-					const noteConfig = this.plugin.configManager.getNoteConfig();
-						noteConfig.questions.push(newQuestion);
-						await this.plugin.configManager.saveData();
+                    this.close();
+                    this.settingsTab.display(); // Refresh the entire settings tab
+                }));
+    }
 
-						this.close();
-					this.settingsTab.display(); // Refresh the entire settings tab
-				}));
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
 }
 
 export class IndexNoteManagerSettingTab extends PluginSettingTab {
@@ -1977,7 +1985,6 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 								this.app,
 								this.plugin,
 								noteType.id,
-								this
 							).open();
 						}),
 				);
@@ -2240,7 +2247,7 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 										"Templater Function",
 									)
 									.setValue(field.type)
-									.onChange(async (value) => {
+									.onChange((value) => {
 										field.type = value as FrontMatterType;
 										if (value === "templater") {
 											this.showTemplaterFunctionInput(
@@ -2248,7 +2255,7 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 												field,
 											);
 										}
-										await this.plugin.configManager.saveData();
+										this.plugin.configManager.saveData();
 									}),
 							);
 
@@ -2570,7 +2577,7 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						.addOption("datetime", "Date & Time (YYYY-MM-DDTHH:mm)")
 						.addOption("templater", "Templater Function")
 						.setValue(field.type)
-						.onChange(async (value) => {
+						.onChange((value) => {
 							field.type = value as FrontMatterType;
 							if (value === "templater") {
 								this.showTemplaterFunctionInput(
@@ -2578,7 +2585,7 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 									field,
 								);
 							}
-							await this.plugin.configManager.saveData();
+							this.plugin.configManager.saveData();
 						}),
 				);
 
@@ -2631,10 +2638,10 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder("<% tp.file.creation_date() %>")
 					.setValue(field.templaterFunction || "")
-					.onChange(async (value) => {
+					.onChange((value) => {
 						field.templaterFunction = value;
 						field.value = value; // Set the value to the templater function
-						await this.plugin.configManager.saveData();
+						this.plugin.configManager.saveData();
 					}),
 			);
 	}
