@@ -74,9 +74,9 @@ export class NoteUtils {
 		answers: Record<string, Answer>,
 	): string {
 		let folderPath = this.placeholderUtils.replacePlaceholders(
-				subtypeConfig.folder,
-				answers,
-			);
+			subtypeConfig.folder,
+			answers,
+		);
 		let fileName = this.sanitizeFileName(
 			this.placeholderUtils.replacePlaceholders(
 				subtypeConfig.title,
