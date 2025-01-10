@@ -1,5 +1,5 @@
 import { Plugin } from "obsidian";
-import { IndexEntry, NoteConfig, GlobalIndex, Index } from "./types";
+import { IndexEntry, NoteConfig, GlobalIndex, Index, FrontMatterField } from "./types";
 import { log } from "./debugUtils";
 
 interface PluginData {
@@ -173,5 +173,26 @@ export class ConfigManager {
 			indexName,
 			JSON.stringify(newEntries, null, 2),
 		);
+	}
+
+	private validateFrontMatterField(field: FrontMatterField): boolean {
+		switch (field.type) {
+			case 'number':
+				return !isNaN(Number(field.value)) || field.value.includes('{{');
+			case 'checkbox':
+				return field.value === 'true' || field.value === 'false' || field.value.includes('{{');
+			case 'date':
+				return /^\d{4}-\d{2}-\d{2}$/.test(field.value) || 
+					   field.value.includes('{{') ||
+					   field.value.includes('<%');
+			case 'datetime':
+				return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(field.value) || 
+					   field.value.includes('{{') ||
+					   field.value.includes('<%');
+			case 'templater':
+				return field.value.includes('<%') && field.value.includes('%>');
+			default:
+				return true;
+		}
 	}
 }

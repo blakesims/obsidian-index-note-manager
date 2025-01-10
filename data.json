@@ -13,22 +13,28 @@
               {
                 "id": "tags",
                 "value": "homepage/subject",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "alias",
                 "value": "{{subject_name}}",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "active",
                 "value": "TRUE",
-                "type": "string"
+                "type": "text"
+              },
+              {
+                "id": "test-field",
+                "value": "{{new_question_ans}}",
+                "type": "link"
               }
             ],
             "indexName": "subject",
             "questions": [
-              "subject_name_question"
+              "subject_name_question",
+              "new_question"
             ],
             "title": "{{subject_name}} Homepage"
           },
@@ -40,26 +46,26 @@
               {
                 "id": "tags",
                 "value": "homepage/student",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "alias",
                 "value": "{{student_name}}",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "active",
                 "value": "TRUE",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "university",
-                "value": "{{university}} Homepage|{{university}}",
+                "value": "{{university}} Homepage",
                 "type": "link"
               },
               {
                 "id": "course",
-                "value": "{{course}}",
+                "value": "{{course}} Homepage",
                 "type": "link"
               }
             ],
@@ -84,12 +90,12 @@
               {
                 "id": "tags",
                 "value": "homepage/university",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "alias",
                 "value": "{{university}}",
-                "type": "string"
+                "type": "text"
               }
             ],
             "title": "{{university}} Homepage"
@@ -106,12 +112,12 @@
               {
                 "id": "tags",
                 "value": "homepage/course",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "alias",
                 "value": "{{course}}",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "university",
@@ -133,15 +139,25 @@
               {
                 "id": "tags",
                 "value": "homepage/tutor",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "alias",
                 "value": "{{tutor}}",
-                "type": "string"
+                "type": "text"
               }
             ],
             "title": "{{tutor}}'s Homepage"
+          },
+          {
+            "id": "Test subtype",
+            "folder": "/",
+            "template": "",
+            "title": "Test subtype",
+            "questions": [
+              "student_name_question"
+            ],
+            "frontMatter": []
           }
         ]
       },
@@ -160,12 +176,12 @@
               {
                 "id": "tags",
                 "value": "note/tutoring",
-                "type": "string"
+                "type": "text"
               },
               {
                 "id": "author",
-                "value": "{{author}}",
-                "type": "string"
+                "value": "The author is: {{author}}",
+                "type": "text"
               },
               {
                 "id": "subject",
@@ -181,6 +197,63 @@
             "title": "{{subject_name}} - {{topic_name}}"
           }
         ]
+      },
+      {
+        "id": "New Note Type",
+        "subtypes": [
+          {
+            "id": "new subtype",
+            "folder": "/",
+            "template": "",
+            "title": "new subtype",
+            "questions": [
+              "new_question"
+            ],
+            "frontMatter": [
+              {
+                "id": "test-checkbox",
+                "value": "true",
+                "type": "checkbox"
+              },
+              {
+                "id": "",
+                "value": "",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "id": "new subtype2",
+            "folder": "/",
+            "template": "",
+            "title": "new subtype2",
+            "questions": [
+              "index-suggester-question"
+            ],
+            "frontMatter": [
+              {
+                "id": "test-date",
+                "value": "",
+                "type": "date"
+              },
+              {
+                "id": "test-date-given-value",
+                "value": "<%tp.date.now()%>",
+                "type": "date"
+              },
+              {
+                "id": "date-time-test",
+                "value": "",
+                "type": "datetime"
+              },
+              {
+                "id": "",
+                "value": "true",
+                "type": "checkbox"
+              }
+            ]
+          }
+        ]
       }
     ],
     "questions": [
@@ -188,8 +261,7 @@
         "questionId": "student_name_question",
         "answerId": "student_name",
         "type": "inputPrompt",
-        "prompt": "Enter the student's name:",
-        "frontMatterType": "link"
+        "prompt": "Enter the student's name:"
       },
       {
         "questionId": "student_email_question",
@@ -224,7 +296,6 @@
         "questionId": "university_course_for_student_homepage",
         "type": "nestedTpsuggester",
         "indexName": "university",
-        "frontMatterType": "link",
         "nest": [
           {
             "questionId": "university_name_question",
@@ -234,8 +305,7 @@
             "createNewEntry": true,
             "newEntryNoteType": "Homepage",
             "newEntryNoteSubtype": "University",
-            "multipleSelections": false,
-            "frontMatterType": "link"
+            "multipleSelections": false
           },
           {
             "questionId": "course_name_question",
@@ -246,7 +316,6 @@
             "newEntryNoteType": "Homepage",
             "newEntryNoteSubtype": "Course",
             "multipleSelections": true,
-            "frontMatterType": "link",
             "parents": [
               "university"
             ]
@@ -257,7 +326,6 @@
         "questionId": "university_course_for_course_homepage",
         "type": "nestedTpsuggester",
         "indexName": "university",
-        "frontMatterType": "link",
         "nest": [
           {
             "questionId": "university_name_question",
@@ -267,8 +335,7 @@
             "createNewEntry": true,
             "newEntryNoteType": "Homepage",
             "newEntryNoteSubtype": "University",
-            "multipleSelections": false,
-            "frontMatterType": "link"
+            "multipleSelections": false
           },
           {
             "questionId": "course_name_question",
@@ -279,7 +346,6 @@
             "newEntryNoteType": "Homepage",
             "newEntryNoteSubtype": "Course",
             "multipleSelections": true,
-            "frontMatterType": "link",
             "parents": [
               "university"
             ]
@@ -299,8 +365,7 @@
             "createNewEntry": true,
             "newEntryNoteType": "Homepage",
             "newEntryNoteSubtype": "Subject",
-            "multipleSelections": false,
-            "frontMatterType": "link"
+            "multipleSelections": false
           },
           {
             "questionId": "topic_name_question",
@@ -311,8 +376,7 @@
             "newEntryNoteType": "Homepage",
             "newEntryNoteSubtype": "Topic",
             "multipleSelections": true,
-            "parentAnswerId": "subject_name",
-            "frontMatterType": "link"
+            "parentAnswerId": "subject_name"
           }
         ]
       },
@@ -340,8 +404,23 @@
         "questionId": "subject_name_question",
         "answerId": "subject_name",
         "type": "inputPrompt",
-        "prompt": "Enter the name of the subject:",
-        "frontMatterType": "link"
+        "prompt": "Enter the name of the subject:"
+      },
+      {
+        "questionId": "new_question",
+        "answerId": "new_question_ans",
+        "type": "inputPrompt",
+        "prompt": "This is a test question"
+      },
+      {
+        "questionId": "index-suggester-question",
+        "answerId": "course-index-modal",
+        "type": "tpsuggester",
+        "prompt": "index suggester question from settings - pick a course?",
+        "indexName": "course",
+        "allowManualEntry": true,
+        "createNewEntry": false,
+        "multipleSelections": true
       }
     ]
   },
@@ -374,7 +453,8 @@
             "children": {
               "course": [
                 "courseB",
-                "New Course for existing university"
+                "New Course for existing university",
+                "New Course entered in settings"
               ]
             }
           },
@@ -429,7 +509,11 @@
               "level": 0,
               "parents": []
             },
-            "children": {}
+            "children": {
+              "course": [
+                "trying:bad name:'s"
+              ]
+            }
           }
         }
       },
@@ -551,6 +635,24 @@
                 "universityA"
               ]
             }
+          },
+          "New Course entered in settings": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "universityB"
+              ]
+            },
+            "children": {}
+          },
+          "trying:bad name:'s": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "new uni entry "
+              ]
+            },
+            "children": {}
           }
         }
       },
@@ -658,6 +760,78 @@
             }
           }
         }
+      },
+      "new-parent-index": {
+        "nested": true,
+        "level": 0,
+        "entries": {
+          "new-parent-index-entry1": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            },
+            "children": {}
+          }
+        }
+      },
+      "new-child-index": {
+        "nested": true,
+        "level": 1,
+        "entries": {},
+        "parents": [
+          "new-parent-index"
+        ]
+      },
+      "new-parent-index2": {
+        "nested": true,
+        "level": 0,
+        "entries": {
+          "new-entry-parentindex2": {
+            "metadata": {
+              "level": 0,
+              "parents": []
+            },
+            "children": {
+              "new-child-2": [
+                "new-child-entry2"
+              ]
+            }
+          }
+        }
+      },
+      "new-child-2": {
+        "nested": true,
+        "level": 1,
+        "entries": {
+          "new-child-entry2": {
+            "metadata": {
+              "level": 1,
+              "parents": [
+                "new-entry-parentindex2"
+              ]
+            },
+            "children": {}
+          }
+        },
+        "parents": [
+          "new-parent-index2"
+        ]
+      },
+      "new-parent3": {
+        "nested": true,
+        "level": 0,
+        "entries": {},
+        "children": [
+          "new-child-3"
+        ]
+      },
+      "new-child-3": {
+        "nested": true,
+        "level": 1,
+        "entries": {},
+        "parents": [
+          "new-parent3"
+        ]
       }
     }
   }

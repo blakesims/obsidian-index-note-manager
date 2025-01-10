@@ -6,6 +6,7 @@ import {
 	NoteType,
 	NoteSubtype,
 	FrontMatterField,
+	FrontMatterType,
 } from "./types";
 import { PlaceholderUtils } from "./placeholderUtils";
 import { log } from "./debugUtils";
@@ -214,38 +215,58 @@ export class FrontMatterGenerator {
 	}
 
 	private formatAnswer(
-		answerObj: { value: any; type: string },
-		frontMatterType: string,
-		multipleSelections: boolean,
+		answerObj: { value: any; type: FrontMatterType },
+		frontMatterType: FrontMatterType,
+		multipleSelections: boolean
 	): string {
-		log("formatAnswerDebug", "==== formatAnswer called ====");
-		log(
-			"formatAnswerDebug",
-			"Input answerObj:",
-			JSON.stringify(answerObj, null, 2),
-		);
-		log("formatAnswerDebug", "frontMatterType:", frontMatterType);
-		log("formatAnswerDebug", "multipleSelections:", multipleSelections);
-
 		const { value } = answerObj;
 
-		if (Array.isArray(value) || multipleSelections) {
-			const arrayValue = Array.isArray(value) ? value : [value];
-			let result = "";
-			for (const item of arrayValue) {
-				if (frontMatterType === "link") {
-					result += `\n  - "[[${item}]]"`;
-				} else {
-					result += `\n  - "${item}"`;
-				}
-			}
-			return result;
-		} else {
-			if (frontMatterType === "link") {
+		// Handle arrays/lists specifically
+		if (frontMatterType === 'list' || Array.isArray(value) || multipleSelections) {
+			return this.formatListValue(value, frontMatterType);
+		}
+
+		return this.formatSingleValue(value, frontMatterType);
+	}
+
+	private formatListValue(value: any, itemType: FrontMatterType = 'text'): string {
+		const arrayValue = Array.isArray(value) ? value : [value];
+		return arrayValue.map(item => {
+			const formattedItem = this.formatSingleValue(item, itemType);
+			return `\n  - ${formattedItem}`;
+		}).join('');
+	}
+
+	private formatSingleValue(value: any, type: FrontMatterType): string {
+		switch (type) {
+			case 'link':
 				return `"[[${value}]]"`;
-			} else {
+			case 'number':
+				const num = Number(value);
+				return isNaN(num) ? '0' : num.toString();
+			case 'checkbox':
+				return value === true || value === 'true' ? 'true' : 'false';
+			case 'date':
+				try {
+					const date = new Date(value);
+					return `"${date.toISOString().split('T')[0]}"`;
+				} catch {
+					return `"${value}"`;
+				}
+			case 'datetime':
+				try {
+					const date = new Date(value);
+					return `"${date.toISOString().split('.')[0]}"`;  // Includes the 'T'
+				} catch {
+					return `"${value}"`;
+				}
+			case 'templater':
+				// Pass through templater functions unchanged
+				return value;
+			case 'tag':
+				return value;  // Tags should not have quotes
+			default: // 'text' and fallback
 				return `"${value}"`;
-			}
 		}
 	}
 }

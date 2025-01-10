@@ -38,10 +38,22 @@ export interface NoteSubtype {
 	title: string;
 }
 
+export type FrontMatterType = 
+	| 'text'          // basic text
+	| 'link'          // internal links
+	| 'list'          // arrays
+	| 'number'        // numeric values
+	| 'checkbox'      // boolean
+	| 'date'          // YYYY-MM-DD
+	| 'datetime'      // YYYY-MM-DDTHH:mm
+	| 'templater'     // for tp.file.* functions
+	| 'tag';         // for tag fields
+
 export interface FrontMatterField {
 	id: string;
 	value: string;
-	type: string;
+	type: FrontMatterType;
+	templaterFunction?: string;
 }
 
 export interface Question {
@@ -49,7 +61,6 @@ export interface Question {
 	answerId: string;
 	type: "inputPrompt" | "tpsuggester" | "nestedTpsuggester";
 	prompt: string;
-	frontMatterType?: string;
 	indexName?: string;
 	nest?: Question[];
 	choices?: string[];

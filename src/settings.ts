@@ -5,15 +5,18 @@ import {
 	TextAreaComponent,
 	Modal,
 	Notice,
+	ButtonComponent,
 } from "obsidian";
 import { IndexNoteManagerPlugin } from "./pluginTypes";
-import { NoteType, NoteSubtype, Question, Index, IndexEntry } from "./types";
-
-interface FrontMatterField {
-	id: string;
-	value: string;
-	type: "string" | "link";
-}
+import { 
+	NoteType, 
+	NoteSubtype, 
+	Question, 
+	Index, 
+	IndexEntry, 
+	FrontMatterType,
+	FrontMatterField 
+} from "./types";
 
 class NewIndexEntryModal extends Modal {
 	private indexName: string;
@@ -300,7 +303,7 @@ class NewSubtypeModal extends Modal {
 					this.frontMatterFields.push({
 						id: "",
 						value: "",
-						type: "string",
+						type: "text" as FrontMatterType,
 					});
 					this.refreshFrontMatterSection();
 				}),
@@ -496,7 +499,7 @@ class NewSubtypeModal extends Modal {
 					this.frontMatterFields.push({
 						id: "",
 						value: "",
-						type: "string",
+						type: "text" as FrontMatterType,
 					});
 					this.refreshFrontMatterSection();
 				}),
@@ -534,15 +537,28 @@ class NewSubtypeModal extends Modal {
 
 			new Setting(fieldContainer)
 				.setName("Type")
+				.setDesc("Select the type of front matter field")
 				.addDropdown((dropdown) =>
 					dropdown
-						.addOption("string", "String")
-						.addOption("link", "Link")
+						.addOption("text", "Text")
+						.addOption("link", "Internal Link")
+						.addOption("list", "List")
+						.addOption("number", "Number")
+						.addOption("checkbox", "Checkbox")
+						.addOption("date", "Date (YYYY-MM-DD)")
+						.addOption("datetime", "Date & Time (YYYY-MM-DDTHH:mm)")
+						.addOption("templater", "Templater Function")
 						.setValue(field.type)
-						.onChange((value) => {
-							this.frontMatterFields[index].type = value as
-								| "string"
-								| "link";
+						.onChange(async (value) => {
+							this.frontMatterFields[index].type = value as FrontMatterType;
+							// If type is templater, show templater function input
+							if (value === "templater") {
+								this.showTemplaterFunctionInput(
+									fieldContainer,
+									field,
+								);
+							}
+							await this.plugin.configManager.saveData();
 						}),
 				);
 
@@ -578,6 +594,28 @@ class NewSubtypeModal extends Modal {
 	onClose() {
 		const { contentEl } = this;
 		contentEl.empty();
+	}
+
+	// Add helper method for templater function input
+	private showTemplaterFunctionInput(
+		container: HTMLElement,
+		field: FrontMatterField,
+	) {
+		new Setting(container)
+			.setName("Templater Function")
+			.setDesc(
+				"Enter the templater function (e.g., tp.file.creation_date())",
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("<% tp.file.creation_date() %>")
+					.setValue(field.templaterFunction || "")
+					.onChange(async (value) => {
+						field.templaterFunction = value;
+						field.value = value; // Set the value to the templater function
+						await this.plugin.configManager.saveData();
+					}),
+			);
 	}
 }
 
@@ -1069,7 +1107,10 @@ class NewIndexModal extends Modal {
 			level: this.level,
 			entries: {},
 			// Safely handle parent index reference
-			parents: this.level === 1 && this.parentIndex ? [this.parentIndex] : undefined,
+			parents:
+				this.level === 1 && this.parentIndex
+					? [this.parentIndex]
+					: undefined,
 			children: this.level === 0 ? [] : undefined,
 		};
 
@@ -1077,14 +1118,19 @@ class NewIndexModal extends Modal {
 
 		// Update parent's children array if this is a child index
 		if (this.level === 1 && this.parentIndex) {
-			const parentIndex = this.plugin.configManager.getIndexConfig(this.parentIndex);
+			const parentIndex = this.plugin.configManager.getIndexConfig(
+				this.parentIndex,
+			);
 			if (parentIndex) {
 				if (!parentIndex.children) {
 					parentIndex.children = [];
 				}
 				if (!parentIndex.children.includes(this.indexId)) {
 					parentIndex.children.push(this.indexId);
-					await this.plugin.configManager.updateParentIndex(this.parentIndex, parentIndex);
+					await this.plugin.configManager.updateParentIndex(
+						this.parentIndex,
+						parentIndex,
+					);
 				}
 			}
 		}
@@ -1221,11 +1267,20 @@ class NewQuestionModal extends Modal {
 		// Basic fields
 		new Setting(contentEl)
 			.setName("Question ID")
-			.setDesc("Unique identifier for this question")
+			.setDesc("Unique identifier for this question (use snake_case)")
 			.addText((text) =>
 				text
 					.setPlaceholder("e.g., student_name_question")
-					.onChange((value) => (this.questionId = value.trim())),
+					.onChange((value) => {
+						const snakeCaseValue = value
+							.trim()
+							.toLowerCase()
+							.replace(/[^a-z0-9_]/g, "_");
+						if (value !== snakeCaseValue) {
+							text.setValue(snakeCaseValue);
+						}
+						this.questionId = snakeCaseValue;
+					}),
 			);
 
 		// Question Type
@@ -1280,9 +1335,14 @@ class NewQuestionModal extends Modal {
 		);
 	}
 
-	private getNestedIndices(): { name: string; display: string; depth: number }[] {
+	private getNestedIndices(): {
+		name: string;
+		display: string;
+		depth: number;
+	}[] {
 		const indices = this.plugin.configManager.getAllIndices();
-		const nestedGroups: { name: string; display: string; depth: number }[] = [];
+		const nestedGroups: { name: string; display: string; depth: number }[] =
+			[];
 
 		// Find root indices (level 0) that are nested
 		Object.entries(indices).forEach(([indexName, index]) => {
@@ -1291,13 +1351,16 @@ class NewQuestionModal extends Modal {
 				let currentName = indexName;
 				let depth = 1;
 				let displayName = indexName;
-				
+
 				// Follow the chain of children
-				while (currentIndex.children && currentIndex.children.length > 0) {
+				while (
+					currentIndex.children &&
+					currentIndex.children.length > 0
+				) {
 					const childName = currentIndex.children[0];
 					const childIndex = indices[childName];
 					if (!childIndex) break;
-					
+
 					displayName += ` → ${childName}`;
 					currentIndex = childIndex;
 					currentName = childName;
@@ -1307,7 +1370,7 @@ class NewQuestionModal extends Modal {
 				nestedGroups.push({
 					name: indexName,
 					display: displayName,
-					depth: depth
+					depth: depth,
 				});
 			}
 		});
@@ -1319,7 +1382,7 @@ class NewQuestionModal extends Modal {
 		this.dynamicFieldsContainer.empty();
 
 		// Answer ID for input prompts
-		if (this.type === 'inputPrompt') {
+		if (this.type === "inputPrompt") {
 			new Setting(this.dynamicFieldsContainer)
 				.setName("Answer ID")
 				.setDesc("ID used in placeholders (use snake_case)")
@@ -1328,7 +1391,10 @@ class NewQuestionModal extends Modal {
 						.setPlaceholder("e.g., student_name")
 						.setValue(this.answerId)
 						.onChange((value) => {
-							const snakeCaseValue = value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+							const snakeCaseValue = value
+								.trim()
+								.toLowerCase()
+								.replace(/[^a-z0-9_]/g, "_");
 							if (value !== snakeCaseValue) {
 								text.setValue(snakeCaseValue);
 							}
@@ -1348,35 +1414,45 @@ class NewQuestionModal extends Modal {
 		}
 
 		// Index selection for TPSuggester and Nested TPSuggester
-		if (this.type === 'tpsuggester' || this.type === 'nestedTpsuggester') {
-			if (this.type === 'tpsuggester') {
+		if (this.type === "tpsuggester" || this.type === "nestedTpsuggester") {
+			if (this.type === "tpsuggester") {
 				// For regular TPSuggester, show all indices but add warning for child indices
 				const indices = this.plugin.configManager.getAllIndices();
-				const indexOptions = Object.entries(indices).map(([name, index]) => ({
-					name,
-					level: index.level
-				}));
+				const indexOptions = Object.entries(indices).map(
+					([name, index]) => ({
+						name,
+						level: index.level,
+					}),
+				);
 
 				new Setting(this.dynamicFieldsContainer)
-					.setName('Index')
-					.setDesc('Select the index to use')
-					.addDropdown(dropdown => {
-						dropdown.addOption('', 'Select index...');
+					.setName("Index")
+					.setDesc("Select the index to use")
+					.addDropdown((dropdown) => {
+						dropdown.addOption("", "Select index...");
 						indexOptions.forEach(({ name, level }) => {
 							dropdown.addOption(name, name);
 						});
 						dropdown.setValue(this.indexName);
-						dropdown.onChange(value => {
+						dropdown.onChange((value) => {
 							this.indexName = value;
 							if (value && indices[value].level > 0) {
-								const warningEl = this.dynamicFieldsContainer.createEl('div', {
-									cls: 'warning',
-									attr: {
-										style: 'color: var(--text-warning); margin-top: 10px; font-size: 0.9em;'
-									}
+								const warningEl =
+									this.dynamicFieldsContainer.createEl(
+										"div",
+										{
+											cls: "warning",
+											attr: {
+												style: "color: var(--text-warning); margin-top: 10px; font-size: 0.9em;",
+											},
+										},
+									);
+								warningEl.createEl("strong", {
+									text: "Note: ",
 								});
-								warningEl.createEl('strong', { text: 'Note: ' });
-								warningEl.appendText('This is a child index. Consider using a Nested Index Suggester if you need to select parent entries first.');
+								warningEl.appendText(
+									"This is a child index. Consider using a Nested Index Suggester if you need to select parent entries first.",
+								);
 							}
 						});
 					});
@@ -1385,26 +1461,38 @@ class NewQuestionModal extends Modal {
 				const nestedGroups = this.getNestedIndices();
 
 				if (nestedGroups.length === 0) {
-					const warningEl = this.dynamicFieldsContainer.createEl('div', {
-						cls: 'warning',
-						attr: {
-							style: 'color: var(--text-error); margin-bottom: 10px;'
-						}
+					const warningEl = this.dynamicFieldsContainer.createEl(
+						"div",
+						{
+							cls: "warning",
+							attr: {
+								style: "color: var(--text-error); margin-bottom: 10px;",
+							},
+						},
+					);
+					warningEl.createEl("strong", {
+						text: "No nested indices found. ",
 					});
-					warningEl.createEl('strong', { text: 'No nested indices found. ' });
-					warningEl.appendText('Create a nested index group first.');
+					warningEl.appendText("Create a nested index group first.");
 					return;
 				}
 
 				// Group Question ID
 				new Setting(this.dynamicFieldsContainer)
-					.setName('Group Question ID')
-					.setDesc('Unique identifier for this nested question group (use snake_case)')
-					.addText(text => {
-						text.setPlaceholder('e.g., university_course_for_student')
+					.setName("Group Question ID")
+					.setDesc(
+						"Unique identifier for this nested question group (use snake_case)",
+					)
+					.addText((text) => {
+						text.setPlaceholder(
+							"e.g., university_course_for_student",
+						)
 							.setValue(this.questionId)
-							.onChange(value => {
-								const snakeCaseValue = value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+							.onChange((value) => {
+								const snakeCaseValue = value
+									.trim()
+									.toLowerCase()
+									.replace(/[^a-z0-9_]/g, "_");
 								if (value !== snakeCaseValue) {
 									text.setValue(snakeCaseValue);
 								}
@@ -1413,20 +1501,24 @@ class NewQuestionModal extends Modal {
 					});
 
 				new Setting(this.dynamicFieldsContainer)
-					.setName('Nested Index Group')
-					.setDesc('Select the nested index group to use')
-					.addDropdown(dropdown => {
-						dropdown.addOption('', 'Select nested index group...');
-						nestedGroups.forEach(group => {
+					.setName("Nested Index Group")
+					.setDesc("Select the nested index group to use")
+					.addDropdown((dropdown) => {
+						dropdown.addOption("", "Select nested index group...");
+						nestedGroups.forEach((group) => {
 							dropdown.addOption(group.name, group.display);
 						});
 						dropdown.setValue(this.indexName);
-						dropdown.onChange(value => {
+						dropdown.onChange((value) => {
 							this.indexName = value;
 							if (value) {
-								const selectedGroup = nestedGroups.find(g => g.name === value);
+								const selectedGroup = nestedGroups.find(
+									(g) => g.name === value,
+								);
 								if (selectedGroup) {
-									this.setupNestedQuestions(selectedGroup.depth);
+									this.setupNestedQuestions(
+										selectedGroup.depth,
+									);
 									this.isNested = true;
 									this.refreshDynamicFields();
 								}
@@ -1435,7 +1527,7 @@ class NewQuestionModal extends Modal {
 					});
 
 				// Remove redundant fields for nested questions
-				if (this.type !== 'nestedTpsuggester' || !this.isNested) {
+				if (this.type !== "nestedTpsuggester" || !this.isNested) {
 					// Answer ID and Prompt only for non-nested questions
 					new Setting(this.dynamicFieldsContainer)
 						.setName("Answer ID")
@@ -1444,7 +1536,9 @@ class NewQuestionModal extends Modal {
 							text
 								.setPlaceholder("e.g., student_name")
 								.setValue(this.answerId)
-								.onChange((value) => (this.answerId = value.trim())),
+								.onChange(
+									(value) => (this.answerId = value.trim()),
+								),
 						);
 
 					new Setting(this.dynamicFieldsContainer)
@@ -1454,7 +1548,9 @@ class NewQuestionModal extends Modal {
 							text
 								.setPlaceholder("Enter the prompt...")
 								.setValue(this.prompt)
-								.onChange((value) => (this.prompt = value.trim())),
+								.onChange(
+									(value) => (this.prompt = value.trim()),
+								),
 						);
 
 					// Common settings only for non-nested questions
@@ -1462,13 +1558,15 @@ class NewQuestionModal extends Modal {
 						.setName("Allow Manual Entry")
 						.setDesc("Allow users to enter custom values")
 						.addToggle((toggle) =>
-							toggle.setValue(this.allowManualEntry).onChange((value) => {
-								this.allowManualEntry = value;
-								if (!value) {
-									this.createNewEntry = false;
-								}
-								this.refreshDynamicFields();
-							}),
+							toggle
+								.setValue(this.allowManualEntry)
+								.onChange((value) => {
+									this.allowManualEntry = value;
+									if (!value) {
+										this.createNewEntry = false;
+									}
+									this.refreshDynamicFields();
+								}),
 						);
 
 					if (this.allowManualEntry) {
@@ -1485,13 +1583,18 @@ class NewQuestionModal extends Modal {
 							);
 
 						if (this.createNewEntry) {
-							const noteTypes = this.plugin.configManager.getNoteConfig().noteTypes;
+							const noteTypes =
+								this.plugin.configManager.getNoteConfig()
+									.noteTypes;
 
 							new Setting(this.dynamicFieldsContainer)
 								.setName("New Entry Note Type")
 								.setDesc("Note type for new entries")
 								.addDropdown((dropdown) => {
-									dropdown.addOption("", "Select note type...");
+									dropdown.addOption(
+										"",
+										"Select note type...",
+									);
 									noteTypes.forEach((type) =>
 										dropdown.addOption(type.id, type.id),
 									);
@@ -1511,14 +1614,24 @@ class NewQuestionModal extends Modal {
 										.setName("New Entry Note Subtype")
 										.setDesc("Note subtype for new entries")
 										.addDropdown((dropdown) => {
-											dropdown.addOption("", "Select subtype...");
-											selectedType.subtypes.forEach((subtype) =>
-												dropdown.addOption(subtype.id, subtype.id),
+											dropdown.addOption(
+												"",
+												"Select subtype...",
 											);
-											dropdown.setValue(this.newEntryNoteSubtype);
+											selectedType.subtypes.forEach(
+												(subtype) =>
+													dropdown.addOption(
+														subtype.id,
+														subtype.id,
+													),
+											);
+											dropdown.setValue(
+												this.newEntryNoteSubtype,
+											);
 											dropdown.onChange(
 												(value) =>
-													(this.newEntryNoteSubtype = value),
+													(this.newEntryNoteSubtype =
+														value),
 											);
 										});
 								}
@@ -1533,134 +1646,178 @@ class NewQuestionModal extends Modal {
 					.addToggle((toggle) =>
 						toggle
 							.setValue(this.multipleSelections)
-							.onChange((value) => (this.multipleSelections = value)),
+							.onChange(
+								(value) => (this.multipleSelections = value),
+							),
 					);
 			}
 
 			// Nested questions configuration
-			if (this.type === "nestedTpsuggester" && this.isNested && this.nestedQuestions.length > 0) {
-				const nestedContainer = this.dynamicFieldsContainer.createEl('div', {
-					cls: 'nested-questions-container',
-					attr: {
-						style: 'margin-top: 20px; padding: 10px; background-color: var(--background-secondary); border-radius: 5px;'
-					}
-				});
+			if (
+				this.type === "nestedTpsuggester" &&
+				this.isNested &&
+				this.nestedQuestions.length > 0
+			) {
+				const nestedContainer = this.dynamicFieldsContainer.createEl(
+					"div",
+					{
+						cls: "nested-questions-container",
+						attr: {
+							style: "margin-top: 20px; padding: 10px; background-color: var(--background-secondary); border-radius: 5px;",
+						},
+					},
+				);
 
-				nestedContainer.createEl('h3', {
-					text: 'Nested Questions Configuration',
-					attr: { style: 'margin: 0 0 10px 0;' }
+				nestedContainer.createEl("h3", {
+					text: "Nested Questions Configuration",
+					attr: { style: "margin: 0 0 10px 0;" },
 				});
 
 				// Help text
-				nestedContainer.createEl('p', {
-					text: 'Configure the prompts for each level of the nested index. Answer IDs are automatically set to match the index names.',
-					attr: { style: 'margin-bottom: 15px; color: var(--text-muted);' }
+				nestedContainer.createEl("p", {
+					text: "Configure the prompts for each level of the nested index. Answer IDs are automatically set to match the index names. Previous answers will be available as placeholders.",
+					attr: {
+						style: "margin-bottom: 15px; color: var(--text-muted);",
+					},
 				});
 
 				// Show nested questions configuration
 				this.nestedQuestions.forEach((question, index) => {
-					const questionContainer = nestedContainer.createEl('div', {
-						cls: 'nested-question-config',
+					const questionContainer = nestedContainer.createEl("div", {
+						cls: "nested-question-config",
 						attr: {
-							style: 'margin-bottom: 20px; padding: 10px; border: 1px solid var(--background-modifier-border); border-radius: 5px;'
-						}
+							style: "margin-bottom: 20px; padding: 10px; border: 1px solid var(--background-modifier-border); border-radius: 5px;",
+						},
 					});
 
 					// Level indicator
-					questionContainer.createEl('div', {
+					questionContainer.createEl("div", {
 						text: `Level ${index} Index: ${question.answerId}`,
 						attr: {
-							style: 'font-weight: bold; margin-bottom: 10px; color: var(--text-accent);'
-						}
+							style: "font-weight: bold; margin-bottom: 10px; color: var(--text-accent);",
+						},
 					});
-
-					// Question ID (read-only display)
-					new Setting(questionContainer)
-						.setName('Question ID')
-						.setDesc('Automatically generated from index name')
-						.addText(text => text
-							.setValue(question.questionId)
-							.setDisabled(true)
-						);
 
 					// Answer ID (read-only display)
 					new Setting(questionContainer)
-						.setName('Answer ID')
-						.setDesc('Matches the index name for this level')
-						.addText(text => text
-							.setValue(question.answerId)
-							.setDisabled(true)
+						.setName("Answer ID")
+						.setDesc("Matches the index name for this level")
+						.addText((text) =>
+							text.setValue(question.answerId).setDisabled(true),
 						);
 
 					// Prompt (editable)
 					new Setting(questionContainer)
-						.setName('Prompt')
-						.setDesc(`Enter the prompt for selecting a ${question.answerId}`)
-						.addText(text => text
-							.setPlaceholder(`e.g., Select a ${question.answerId}...`)
-							.setValue(question.prompt)
-							.onChange(value => {
-								this.nestedQuestions[index].prompt = value.trim();
-							})
+						.setName("Prompt")
+						.setDesc(
+							`Enter the prompt for selecting a ${question.answerId}`,
+						)
+						.addText((text) =>
+							text
+								.setPlaceholder(
+									`e.g., Select a ${question.answerId}...`,
+								)
+								.setValue(question.prompt)
+								.onChange((value) => {
+									this.nestedQuestions[index].prompt =
+										value.trim();
+								}),
 						);
 
 					// Common settings for each level
 					new Setting(questionContainer)
-						.setName('Allow Manual Entry')
-						.setDesc('Allow users to enter custom values')
-						.addToggle(toggle => toggle
-							.setValue(question.allowManualEntry)
-							.onChange(value => {
-								this.nestedQuestions[index].allowManualEntry = value;
-								if (!value) {
-									this.nestedQuestions[index].createNewEntry = false;
-								}
-								this.refreshDynamicFields();
-							})
+						.setName("Allow New Index Entry")
+						.setDesc(
+							"Allow users to create new entries that will be saved to the index",
+						)
+						.addToggle((toggle) =>
+							toggle
+								.setValue(question.allowManualEntry)
+								.onChange((value) => {
+									this.nestedQuestions[
+										index
+									].allowManualEntry = value;
+									if (!value) {
+										this.nestedQuestions[
+											index
+										].createNewEntry = false;
+									}
+									this.refreshDynamicFields();
+								}),
 						);
 
 					if (question.allowManualEntry) {
 						new Setting(questionContainer)
-							.setName('Create New Entry')
-							.setDesc('Allow creating new index entries')
-							.addToggle(toggle => toggle
-								.setValue(question.createNewEntry)
-								.onChange(value => {
-									this.nestedQuestions[index].createNewEntry = value;
-									this.refreshDynamicFields();
-								})
+							.setName("Create Note for New Entry")
+							.setDesc(
+								"Automatically create a new note when a new index entry is created",
+							)
+							.addToggle((toggle) =>
+								toggle
+									.setValue(question.createNewEntry)
+									.onChange((value) => {
+										this.nestedQuestions[
+											index
+										].createNewEntry = value;
+										this.refreshDynamicFields();
+									}),
 							);
 
 						if (question.createNewEntry) {
-							const noteTypes = this.plugin.configManager.getNoteConfig().noteTypes;
-							
+							const noteTypes =
+								this.plugin.configManager.getNoteConfig()
+									.noteTypes;
+
 							new Setting(questionContainer)
-								.setName('New Entry Note Type')
-								.setDesc('Note type for new entries')
-								.addDropdown(dropdown => {
-									dropdown.addOption('', 'Select note type...');
-									noteTypes.forEach(type => dropdown.addOption(type.id, type.id));
-									dropdown.setValue(question.newEntryNoteType || '');
-									dropdown.onChange(value => {
-										this.nestedQuestions[index].newEntryNoteType = value;
+								.setName("New Entry Note Type")
+								.setDesc("Note type for new entries")
+								.addDropdown((dropdown) => {
+									dropdown.addOption(
+										"",
+										"Select note type...",
+									);
+									noteTypes.forEach((type) =>
+										dropdown.addOption(type.id, type.id),
+									);
+									dropdown.setValue(
+										question.newEntryNoteType || "",
+									);
+									dropdown.onChange((value) => {
+										this.nestedQuestions[
+											index
+										].newEntryNoteType = value;
 										this.refreshDynamicFields();
 									});
 								});
 
 							if (question.newEntryNoteType) {
-								const selectedType = noteTypes.find(t => t.id === question.newEntryNoteType);
+								const selectedType = noteTypes.find(
+									(t) => t.id === question.newEntryNoteType,
+								);
 								if (selectedType) {
 									new Setting(questionContainer)
-										.setName('New Entry Note Subtype')
-										.setDesc('Note subtype for new entries')
-										.addDropdown(dropdown => {
-											dropdown.addOption('', 'Select subtype...');
-											selectedType.subtypes.forEach(subtype => 
-												dropdown.addOption(subtype.id, subtype.id)
+										.setName("New Entry Note Subtype")
+										.setDesc("Note subtype for new entries")
+										.addDropdown((dropdown) => {
+											dropdown.addOption(
+												"",
+												"Select subtype...",
 											);
-											dropdown.setValue(question.newEntryNoteSubtype || '');
-											dropdown.onChange(value => {
-												this.nestedQuestions[index].newEntryNoteSubtype = value;
+											selectedType.subtypes.forEach(
+												(subtype) =>
+													dropdown.addOption(
+														subtype.id,
+														subtype.id,
+													),
+											);
+											dropdown.setValue(
+												question.newEntryNoteSubtype ||
+													"",
+											);
+											dropdown.onChange((value) => {
+												this.nestedQuestions[
+													index
+												].newEntryNoteSubtype = value;
 											});
 										});
 								}
@@ -1669,13 +1826,16 @@ class NewQuestionModal extends Modal {
 					}
 
 					new Setting(questionContainer)
-						.setName('Allow Multiple Selections')
-						.setDesc('Allow selecting multiple values')
-						.addToggle(toggle => toggle
-							.setValue(question.multipleSelections)
-							.onChange(value => {
-								this.nestedQuestions[index].multipleSelections = value;
-							})
+						.setName("Allow Multiple Selections")
+						.setDesc("Allow selecting multiple values")
+						.addToggle((toggle) =>
+							toggle
+								.setValue(question.multipleSelections)
+								.onChange((value) => {
+									this.nestedQuestions[
+										index
+									].multipleSelections = value;
+								}),
 						);
 				});
 			}
@@ -1685,20 +1845,20 @@ class NewQuestionModal extends Modal {
 	private setupNestedQuestions(depth: number): void {
 		// Clear existing questions
 		this.nestedQuestions = [];
-		
+
 		// Get the chain of indices
 		const indices = this.plugin.configManager.getAllIndices();
 		let currentIndex = indices[this.indexName];
 		let currentName = this.indexName;
-		
+
 		// Create a question for each level
 		for (let i = 0; i < depth; i++) {
 			this.nestedQuestions.push({
 				answerId: currentName,
-				prompt: '',
+				prompt: "",
 				allowManualEntry: false,
 				createNewEntry: false,
-				multipleSelections: false
+				multipleSelections: false,
 			});
 
 			// Move to next index in chain
@@ -1839,6 +1999,97 @@ class NewQuestionModal extends Modal {
 	}
 }
 
+class QuestionEditModal extends Modal {
+	private question: Question;
+	private plugin: IndexNoteManagerPlugin;
+
+	constructor(app: App, plugin: IndexNoteManagerPlugin, question: Question) {
+		super(app);
+		this.plugin = plugin;
+		this.question = question;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+
+		contentEl.createEl("h2", { text: "Edit Question" });
+
+		// Question ID (read-only)
+		new Setting(contentEl)
+			.setName("Question ID")
+			.addText((text) =>
+				text.setValue(this.question.questionId).setDisabled(true),
+			);
+
+		// Answer ID
+		new Setting(contentEl).setName("Answer ID").addText((text) =>
+			text.setValue(this.question.answerId).onChange(async (value) => {
+				this.question.answerId = value;
+			}),
+		);
+
+		// Prompt
+		new Setting(contentEl).setName("Prompt").addText((text) =>
+			text.setValue(this.question.prompt).onChange(async (value) => {
+				this.question.prompt = value;
+			}),
+		);
+
+		// Usage information
+		const usageContainer = contentEl.createEl("div");
+		usageContainer.createEl("h3", { text: "Used In" });
+		const usage = this.getQuestionUsage(this.question.questionId);
+
+		if (usage.length > 0) {
+			const ul = usageContainer.createEl("ul");
+			usage.forEach((u) => {
+				ul.createEl("li", {
+					text: `${u.noteType} > ${u.subtype}`,
+				});
+			});
+		} else {
+			usageContainer.createEl("p", {
+				text: "Not currently used in any note types",
+				attr: { style: "color: var(--text-error);" },
+			});
+		}
+
+		// Save button
+		new Setting(contentEl).addButton((btn) =>
+			btn.setButtonText("Save").onClick(async () => {
+				await this.plugin.configManager.saveData();
+				this.close();
+			}),
+		);
+	}
+
+	private getQuestionUsage(
+		questionId: string,
+	): Array<{ noteType: string; subtype: string }> {
+		const usage: Array<{ noteType: string; subtype: string }> = [];
+		const noteConfig = this.plugin.configManager.getNoteConfig();
+
+		noteConfig.noteTypes.forEach((noteType) => {
+			noteType.subtypes.forEach((subtype) => {
+				if (subtype.questions.includes(questionId)) {
+					usage.push({
+						noteType: noteType.id,
+						subtype: subtype.id,
+					});
+				}
+			});
+		});
+
+		return usage;
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
 export class IndexNoteManagerSettingTab extends PluginSettingTab {
 	plugin: IndexNoteManagerPlugin;
 	jsonEditor: TextAreaComponent;
@@ -1854,49 +2105,34 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 
 		containerEl.createEl("h1", { text: "Index Note Manager Settings" });
 
-		// Add JSON Editor Section
-		const jsonSection = containerEl.createEl("details", {
-			cls: "json-editor-section",
-		});
-		jsonSection.createEl("summary", { text: "JSON Configuration" });
-
-		new Setting(jsonSection)
-			.setName("Configuration")
-			.setDesc("Edit the raw JSON configuration")
-			.addTextArea((text) => {
-				this.jsonEditor = text;
-				text.setValue(
-					JSON.stringify(
-						this.plugin.configManager.getNoteConfig(),
-						null,
-						2,
-					),
-				)
-					.setPlaceholder("Enter your configuration here")
-					.onChange(async (value) => {
-						try {
-							const config = JSON.parse(value);
-							await this.plugin.configManager.setNoteConfig(
-								config,
-							);
-							await this.plugin.configManager.saveData();
-							this.display(); // Refresh the display
-						} catch (e) {
-							console.error("Invalid JSON:", e);
-						}
-					});
-				text.inputEl.rows = 20;
-				text.inputEl.cols = 50;
-			});
-
 		// Questions Section
 		const questionsSection = containerEl.createEl("details", {
 			cls: "questions-section",
 		});
+
+		// Add buttons at the top
+		const buttonContainer = questionsSection.createEl('div', {
+			cls: 'question-buttons-container',
+			attr: { style: 'margin-bottom: 20px;' }
+		});
+		
+		new Setting(buttonContainer)
+			.addButton(btn => btn
+				.setButtonText('View Available Placeholders')
+				.onClick(() => {
+					new PlaceholderViewerModal(this.app, this.plugin.configManager.getNoteConfig().questions).open();
+				}))
+			.addButton(btn => btn
+				.setButtonText('Add New Question')
+				.onClick(() => {
+					new NewQuestionModal(this.app, this.plugin).open();
+				}));
+
 		questionsSection.createEl("summary", {
 			text: "Questions Configuration",
 		});
 
+		// Display questions
 		const questions = this.plugin.configManager.getNoteConfig().questions;
 		questions.forEach((question: Question) => {
 			const questionDetails = questionsSection.createEl("details", {
@@ -2389,20 +2625,193 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						.setClass("subtype-setting");
 				}
 
-				// Enhanced Front Matter display
-				if (subtype.frontMatter && subtype.frontMatter.length > 0) {
-					const frontMatterDetails = subtypeDetails.createEl(
-						"details",
-						{
-							cls: "frontmatter-container",
-						},
-					);
-					frontMatterDetails.createEl("summary", {
-						text: "Front Matter Configuration",
+				// Add buttons for managing questions
+				const questionsContainer = subtypeDetails.createEl("details", {
+					cls: "questions-container",
+				});
+				questionsContainer.createEl("summary", {
+					text: "Configured Questions",
+				});
+
+				// Add Question button with dropdown
+				new Setting(questionsContainer)
+					.setName("Add Question")
+					.setDesc("Add an existing question to this subtype")
+					.addDropdown((dropdown) => {
+						const allQuestions =
+							this.plugin.configManager.getNoteConfig().questions;
+						const unusedQuestions = allQuestions.filter(
+							(q) => !subtype.questions?.includes(q.questionId),
+						);
+
+						dropdown.addOption("", "Select a question...");
+						unusedQuestions.forEach((q) => {
+							dropdown.addOption(
+								q.questionId,
+								`${q.questionId} (${q.type})`,
+							);
+						});
+
+						dropdown.onChange(async (value) => {
+							if (!value) return;
+
+							if (!subtype.questions) {
+								subtype.questions = [];
+							}
+							subtype.questions.push(value);
+							await this.plugin.configManager.saveData();
+
+							// Refresh just the questions container without collapsing
+							const currentContainer =
+								questionsContainer.querySelector(
+									".questions-container",
+								) as HTMLElement;
+							if (currentContainer) {
+								this.displayConfiguredQuestions(
+									currentContainer,
+									subtype.questions,
+								);
+							}
+						});
 					});
 
-					subtype.frontMatter.forEach((field) => {
-						const fieldContainer = frontMatterDetails.createEl(
+				// Display existing questions
+				if (subtype.questions && subtype.questions.length > 0) {
+					subtype.questions.forEach((questionId: string) => {
+						const question = questions.find(
+							(q) => q.questionId === questionId,
+						);
+						const container = questionsContainer.createEl("div", {
+							cls: "question-config",
+							attr: {
+								style: "margin-bottom: 10px; padding: 5px; border-left: 2px solid var(--interactive-accent);",
+							},
+						});
+
+						new Setting(container)
+							.setName("Question ID")
+							.setDesc(questionId)
+							.setClass("question-setting");
+
+						if (question) {
+							if (
+								question.type === "nestedTpsuggester" &&
+								question.nest
+							) {
+								// Display Answer IDs
+								const answerIds = question.nest
+									.map((q, i) => `${i + 1}. ${q.answerId}`)
+									.join("\n");
+								new Setting(container)
+									.setName("Answer IDs")
+									.setDesc(answerIds)
+									.setClass("question-setting");
+
+								// Display Prompts
+								const prompts = question.nest
+									.map((q, i) => `${i + 1}. ${q.prompt}`)
+									.join("\n");
+								new Setting(container)
+									.setName("Prompts")
+									.setDesc(prompts)
+									.setClass("question-setting");
+
+								// Show Index Relationship
+								const parentIndex = question.indexName;
+								if (parentIndex) {
+									const childIndex =
+										this.plugin.configManager.getIndexConfig(
+											parentIndex,
+										)?.children?.[0];
+									new Setting(container)
+										.setName("Index Relationship")
+										.setDesc(
+											`${parentIndex} → ${childIndex || "N/A"}`,
+										)
+										.setClass("question-setting");
+								}
+
+								new Setting(container)
+									.setName("Type")
+									.setDesc("Nested TPSuggester")
+									.setClass("question-setting");
+							} else {
+								// Display for non-nested questions remains the same
+								new Setting(container)
+									.setName("Prompt")
+									.setDesc(question.prompt)
+									.setClass("question-setting");
+
+								new Setting(container)
+									.setName("Answer ID")
+									.setDesc(question.answerId || "N/A")
+									.setClass("question-setting");
+
+								new Setting(container)
+									.setName("Type")
+									.setDesc(question.type)
+									.setClass("question-setting");
+							}
+						}
+					});
+				}
+
+				// Add buttons for managing front matter
+				const frontMatterContainer = subtypeDetails.createEl(
+					"details",
+					{
+						cls: "frontmatter-container",
+					},
+				);
+				frontMatterContainer.createEl("summary", {
+					text: "Front Matter Configuration",
+				});
+
+				// Add Front Matter Field button
+				new Setting(frontMatterContainer)
+					.setName("Add Front Matter Field")
+					.setDesc("Add a new front matter field to this subtype")
+					.addButton((btn) =>
+						btn
+							.setButtonText("Add Field")
+							.setCta()
+							.onClick(async () => {
+								const newField: FrontMatterField = {
+									id: "",
+									value: "",
+									type: "text" as FrontMatterType,
+								};
+								if (!subtype.frontMatter) {
+									subtype.frontMatter = [];
+								}
+								subtype.frontMatter.push(newField);
+								await this.plugin.configManager.saveData();
+
+								// Refresh just the front matter fields without collapsing
+								const fieldsContainer = frontMatterContainer.querySelector(
+									".frontmatter-fields",
+								) as HTMLElement;
+								if (!fieldsContainer) {
+									const newFieldsContainer = frontMatterContainer.createEl("div", {
+										cls: "frontmatter-fields",
+									});
+									this.displayFrontMatterFields(
+										newFieldsContainer,
+										subtype.frontMatter,
+									);
+								} else {
+									this.displayFrontMatterFields(
+										fieldsContainer,
+										subtype.frontMatter,
+									);
+								}
+							}),
+					);
+
+				// Display existing front matter fields
+				if (subtype.frontMatter && subtype.frontMatter.length > 0) {
+					subtype.frontMatter.forEach((field, index) => {
+						const fieldContainer = frontMatterContainer.createEl(
 							"div",
 							{
 								cls: "frontmatter-field",
@@ -2415,19 +2824,73 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 						new Setting(fieldContainer)
 							.setName("Field")
 							.setDesc(field.id)
-							.setClass("frontmatter-setting");
+							.addText((text) =>
+								text
+									.setValue(field.id)
+									.onChange(async (value) => {
+										field.id = value;
+										await this.plugin.configManager.saveData();
+									}),
+							);
 
 						new Setting(fieldContainer)
 							.setName("Type")
-							.setDesc(field.type)
-							.setClass("frontmatter-setting");
+							.setDesc("Select the type of front matter field")
+							.addDropdown((dropdown) =>
+								dropdown
+									.addOption("text", "Text")
+									.addOption("link", "Internal Link")
+									.addOption("list", "List")
+									.addOption("number", "Number")
+									.addOption("checkbox", "Checkbox")
+									.addOption("date", "Date (YYYY-MM-DD)")
+									.addOption(
+										"datetime",
+										"Date & Time (YYYY-MM-DDTHH:mm)",
+									)
+									.addOption(
+										"templater",
+										"Templater Function",
+									)
+									.setValue(field.type)
+									.onChange(async (value) => {
+										field.type = value as FrontMatterType;
+										if (value === "templater") {
+											this.showTemplaterFunctionInput(
+												fieldContainer,
+												field,
+											);
+										}
+										await this.plugin.configManager.saveData();
+									}),
+							);
 
 						new Setting(fieldContainer)
 							.setName("Value Template")
-							.setDesc(field.value)
-							.setClass("frontmatter-setting");
+							.addText((text) =>
+								text
+									.setValue(field.value)
+									.setPlaceholder(
+										"Value (can include {{placeholders}})",
+									)
+									.onChange(async (value) => {
+										field.value = value;
+										await this.plugin.configManager.saveData();
+									}),
+							);
 
-						// Add placeholder detection
+						new Setting(fieldContainer).addButton((btn) =>
+							btn.setButtonText("Remove").onClick(async () => {
+								subtype.frontMatter.splice(index, 1);
+								await this.plugin.configManager.saveData();
+								this.displayFrontMatterFields(
+									frontMatterContainer,
+									subtype.frontMatter,
+								);
+							}),
+						);
+
+						// Show placeholders
 						const placeholders = field.value.match(/{{[^}]+}}/g);
 						if (placeholders) {
 							const placeholderContainer =
@@ -2441,76 +2904,6 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 									placeholders.join(", "),
 								attr: { style: "color: var(--text-muted);" },
 							});
-						}
-					});
-				}
-
-				// Enhanced Questions display
-				if (subtype.questions && subtype.questions.length > 0) {
-					const questionsDetails = subtypeDetails.createEl('details', {
-						cls: 'questions-container'
-					});
-					questionsDetails.createEl('summary', { text: 'Configured Questions' });
-
-					subtype.questions.forEach((questionId: string) => {
-						const question = questions.find(q => q.questionId === questionId);
-						const container = questionsDetails.createEl('div', {
-							cls: 'question-config',
-							attr: { style: 'margin-bottom: 10px; padding: 5px; border-left: 2px solid var(--interactive-accent);' }
-						});
-
-						new Setting(container)
-							.setName('Question ID')
-							.setDesc(questionId)
-							.setClass('question-setting');
-
-						if (question) {
-							if (question.type === 'nestedTpsuggester' && question.nest) {
-								// Display Answer IDs
-								const answerIds = question.nest.map((q, i) => `${i + 1}. ${q.answerId}`).join('\n');
-								new Setting(container)
-									.setName('Answer IDs')
-									.setDesc(answerIds)
-									.setClass('question-setting');
-
-								// Display Prompts
-								const prompts = question.nest.map((q, i) => `${i + 1}. ${q.prompt}`).join('\n');
-								new Setting(container)
-									.setName('Prompts')
-									.setDesc(prompts)
-									.setClass('question-setting');
-
-								// Show Index Relationship
-								const parentIndex = question.indexName;
-								if (parentIndex) {
-									const childIndex = this.plugin.configManager.getIndexConfig(parentIndex)?.children?.[0];
-									new Setting(container)
-										.setName('Index Relationship')
-										.setDesc(`${parentIndex} → ${childIndex || 'N/A'}`)
-										.setClass('question-setting');
-								}
-
-								new Setting(container)
-									.setName('Type')
-									.setDesc('Nested TPSuggester')
-									.setClass('question-setting');
-							} else {
-								// Display for non-nested questions remains the same
-								new Setting(container)
-									.setName('Prompt')
-									.setDesc(question.prompt)
-									.setClass('question-setting');
-
-								new Setting(container)
-									.setName('Answer ID')
-									.setDesc(question.answerId || 'N/A')
-									.setClass('question-setting');
-
-								new Setting(container)
-									.setName('Type')
-									.setDesc(question.type)
-									.setClass('question-setting');
-							}
 						}
 					});
 				}
@@ -2644,96 +3037,108 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 		}
 	}
 
-	private displayConfiguredQuestions(container: HTMLElement, questions: Question[]): void {
-		questions.forEach(question => {
-			const questionContainer = container.createEl('div', {
-				cls: 'configured-question',
+	private displayConfiguredQuestions(
+		container: HTMLElement,
+		questionIds: string[],
+	): void {
+		const allQuestions = this.plugin.configManager.getNoteConfig().questions;
+		
+		questionIds.forEach((questionId) => {
+			const question = allQuestions.find(q => q.questionId === questionId);
+			if (!question) return;
+
+			const questionContainer = container.createEl("div", {
+				cls: "configured-question",
 				attr: {
-					style: 'margin-bottom: 15px; padding: 10px; border: 1px solid var(--background-modifier-border); border-radius: 5px;'
-				}
+					style: "margin-bottom: 15px; padding: 10px; border: 1px solid var(--background-modifier-border); border-radius: 5px;",
+				},
 			});
 
 			// Question ID and Type
-			questionContainer.createEl('div', {
+			questionContainer.createEl("div", {
 				text: `Question ID: ${question.questionId} (${question.type})`,
-				attr: { style: 'font-weight: bold; margin-bottom: 10px;' }
+				attr: { style: "font-weight: bold; margin-bottom: 10px;" },
 			});
 
-			if (question.type === 'nestedTpsuggester' && question.nest) {
+			if (question.type === "nestedTpsuggester" && question.nest) {
 				// Display nested questions in a numbered list
-				const nestedList = questionContainer.createEl('ol', {
-						attr: { style: 'margin: 10px 0; padding-left: 20px;' }
+				const nestedList = questionContainer.createEl("ol", {
+					attr: { style: "margin: 10px 0; padding-left: 20px;" },
+				});
+
+				question.nest.forEach((nestedQ, index) => {
+					const listItem = nestedList.createEl("li", {
+						attr: { style: "margin-bottom: 10px;" },
 					});
 
-				question.nest.forEach((nestedQ: Question, index: number) => {
-					const listItem = nestedList.createEl('li', {
-						attr: { style: 'margin-bottom: 10px;' }
-					});
-
-					listItem.createEl('div', {
+					listItem.createEl("div", {
 						text: `Level ${index}:`,
-						attr: { style: 'font-weight: bold; margin-bottom: 5px;' }
+						attr: {
+							style: "font-weight: bold; margin-bottom: 5px;",
+						},
 					});
 
-					listItem.createEl('div', {
-						text: `Prompt: ${nestedQ.prompt || 'N/A'}`,
-						attr: { style: 'margin-left: 10px;' }
+					listItem.createEl("div", {
+						text: `Prompt: ${nestedQ.prompt || "N/A"}`,
+						attr: { style: "margin-left: 10px;" },
 					});
 
-					listItem.createEl('div', {
-						text: `Answer ID: ${nestedQ.indexName || 'N/A'}`,
-						attr: { style: 'margin-left: 10px;' }
+					listItem.createEl("div", {
+						text: `Answer ID: ${nestedQ.answerId || "N/A"}`,
+						attr: { style: "margin-left: 10px;" },
 					});
 
-					listItem.createEl('div', {
-						text: `Index: ${nestedQ.indexName || 'N/A'}`,
-						attr: { style: 'margin-left: 10px;' }
+					listItem.createEl("div", {
+						text: `Index: ${nestedQ.indexName || "N/A"}`,
+						attr: { style: "margin-left: 10px;" },
 					});
 				});
 			} else {
 				// Display regular question details
-				questionContainer.createEl('div', {
-					text: `Prompt: ${question.prompt || 'N/A'}`
+				questionContainer.createEl("div", {
+					text: `Prompt: ${question.prompt || "N/A"}`,
 				});
 
-				questionContainer.createEl('div', {
-					text: `Answer ID: ${question.indexName || 'N/A'}`
+				questionContainer.createEl("div", {
+					text: `Answer ID: ${question.answerId || "N/A"}`,
 				});
 
-				if (question.type === 'tpsuggester') {
-					questionContainer.createEl('div', {
-						text: `Index: ${question.indexName || 'N/A'}`
+				if (question.type === "tpsuggester") {
+					questionContainer.createEl("div", {
+						text: `Index: ${question.indexName || "N/A"}`,
 					});
 				}
 			}
 
 			// Display additional configuration
 			if (question.allowManualEntry) {
-				const manualEntryDiv = questionContainer.createEl('div', {
-					attr: { style: 'margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--background-modifier-border);' }
+				const manualEntryDiv = questionContainer.createEl("div", {
+					attr: {
+						style: "margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--background-modifier-border);",
+					},
 				});
 
-				manualEntryDiv.createEl('div', {
-					text: '✓ Allows Manual Entry',
-					attr: { style: 'color: var(--text-success);' }
+				manualEntryDiv.createEl("div", {
+					text: "✓ Allows Manual Entry",
+					attr: { style: "color: var(--text-success);" },
 				});
 
 				if (question.createNewEntry) {
-					manualEntryDiv.createEl('div', {
-						text: '✓ Can Create New Entries',
-						attr: { style: 'color: var(--text-success);' }
+					manualEntryDiv.createEl("div", {
+						text: "✓ Can Create New Entries",
+						attr: { style: "color: var(--text-success);" },
 					});
 
 					if (question.newEntryNoteType) {
-						manualEntryDiv.createEl('div', {
+						manualEntryDiv.createEl("div", {
 							text: `Note Type: ${question.newEntryNoteType}`,
-							attr: { style: 'margin-left: 10px;' }
+							attr: { style: "margin-left: 10px;" },
 						});
 
 						if (question.newEntryNoteSubtype) {
-							manualEntryDiv.createEl('div', {
+							manualEntryDiv.createEl("div", {
 								text: `Note Subtype: ${question.newEntryNoteSubtype}`,
-								attr: { style: 'margin-left: 10px;' }
+								attr: { style: "margin-left: 10px;" },
 							});
 						}
 					}
@@ -2741,5 +3146,109 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 			}
 		});
 	}
-}
 
+	// Add helper method to display front matter fields
+	private displayFrontMatterFields(
+		container: HTMLElement,
+		fields: FrontMatterField[],
+	): void {
+		container.empty();
+
+		fields.forEach((field, index) => {
+			const fieldContainer = container.createEl("div", {
+				cls: "frontmatter-field",
+				attr: {
+					style: "margin-bottom: 10px; padding: 5px; border-left: 2px solid var(--interactive-accent);",
+				},
+			});
+
+			new Setting(fieldContainer).setName("Field").addText((text) =>
+				text.setValue(field.id).onChange(async (value) => {
+					field.id = value;
+					await this.plugin.configManager.saveData();
+				}),
+			);
+
+			new Setting(fieldContainer)
+				.setName("Type")
+				.setDesc("Select the type of front matter field")
+				.addDropdown((dropdown) =>
+					dropdown
+						.addOption("text", "Text")
+						.addOption("link", "Internal Link")
+						.addOption("list", "List")
+						.addOption("number", "Number")
+						.addOption("checkbox", "Checkbox")
+						.addOption("date", "Date (YYYY-MM-DD)")
+						.addOption("datetime", "Date & Time (YYYY-MM-DDTHH:mm)")
+						.addOption("templater", "Templater Function")
+						.setValue(field.type)
+						.onChange(async (value) => {
+							field.type = value as FrontMatterType;
+							if (value === "templater") {
+								this.showTemplaterFunctionInput(
+									fieldContainer,
+									field,
+								);
+							}
+							await this.plugin.configManager.saveData();
+						}),
+				);
+
+			new Setting(fieldContainer)
+				.setName("Value Template")
+				.addText((text) =>
+					text
+						.setValue(field.value)
+						.setPlaceholder("Value (can include {{placeholders}})")
+						.onChange(async (value) => {
+							field.value = value;
+							await this.plugin.configManager.saveData();
+						}),
+				);
+
+			new Setting(fieldContainer).addButton((btn) =>
+				btn.setButtonText("Remove").onClick(async () => {
+					fields.splice(index, 1);
+					await this.plugin.configManager.saveData();
+					this.displayFrontMatterFields(container, fields);
+				}),
+			);
+
+			// Show placeholders
+			const placeholders = field.value.match(/{{[^}]+}}/g);
+			if (placeholders) {
+				const placeholderContainer = fieldContainer.createEl("div", {
+					cls: "placeholder-list",
+					attr: { style: "margin-left: 20px;" },
+				});
+				placeholderContainer.createEl("small", {
+					text: "Uses placeholders: " + placeholders.join(", "),
+					attr: { style: "color: var(--text-muted);" },
+				});
+			}
+		});
+	}
+
+	// Add helper method for templater function input
+	private showTemplaterFunctionInput(
+		container: HTMLElement,
+		field: FrontMatterField,
+	) {
+		new Setting(container)
+			.setName("Templater Function")
+			.setDesc(
+				"Enter the templater function (e.g., tp.file.creation_date())",
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("<% tp.file.creation_date() %>")
+					.setValue(field.templaterFunction || "")
+					.onChange(async (value) => {
+						field.templaterFunction = value;
+						field.value = value; // Set the value to the templater function
+						await this.plugin.configManager.saveData();
+					}),
+			);
+	}
+}
