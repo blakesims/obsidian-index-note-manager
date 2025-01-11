@@ -1,3 +1,5 @@
+import { App } from "obsidian";
+
 export class ModalUtils {
 	private app: App;
 
@@ -23,20 +25,28 @@ export class ModalUtils {
             `;
 
 			// Add suggestions
-			const suggestionContainer = modal.querySelector(
+			const suggestionContainer = modal.querySelector<HTMLDivElement>(
 				".suggestion-container",
 			);
+			if (!suggestionContainer) {
+				reject(new Error("Failed to create modal"));
+				return;
+			}
+
 			let currentIndex = -1;
 
 			function renderSuggestions(filteredSuggestions: string[]) {
+				if (!suggestionContainer) return;
 				suggestionContainer.innerHTML = "";
 				filteredSuggestions.forEach((suggestion, index) => {
 					const btn = document.createElement("button");
 					btn.textContent = suggestion;
 					btn.className = "suggestion-btn";
 					btn.onclick = () => {
-						document.getElementById("customInput").value =
-							suggestion;
+						const input = document.getElementById("customInput") as HTMLInputElement;
+						if (input) {
+							input.value = suggestion;
+						}
 						resolve(suggestion);
 						document.body.removeChild(modal);
 					};
@@ -55,6 +65,9 @@ export class ModalUtils {
 			}
 
 			function handleKeyDown(event: KeyboardEvent) {
+				const inputEl = document.getElementById("customInput") as HTMLInputElement;
+				if (!inputEl) return;
+
 				const filteredSuggestions = filterSuggestions(inputEl.value);
 				if (event.key === "ArrowDown") {
 					currentIndex =
@@ -79,9 +92,12 @@ export class ModalUtils {
 				}
 			}
 
-			const inputEl = modal.querySelector(
-				"#customInput",
-			) as HTMLInputElement;
+			const inputEl = modal.querySelector<HTMLInputElement>("#customInput");
+			if (!inputEl) {
+				reject(new Error("Failed to create modal"));
+				return;
+			}
+
 			inputEl.addEventListener("input", () => {
 				currentIndex = -1;
 				renderSuggestions(filterSuggestions(inputEl.value));
@@ -89,10 +105,13 @@ export class ModalUtils {
 
 			inputEl.addEventListener("keydown", handleKeyDown);
 
-			modal.querySelector("#cancelBtn").onclick = () => {
-				reject(new Error("Cancelled prompt"));
-				document.body.removeChild(modal);
-			};
+			const cancelBtn = modal.querySelector<HTMLButtonElement>("#cancelBtn");
+			if (cancelBtn) {
+				cancelBtn.onclick = () => {
+					reject(new Error("Cancelled prompt"));
+					document.body.removeChild(modal);
+				};
+			}
 
 			// Add modal to body
 			document.body.appendChild(modal);
@@ -117,14 +136,19 @@ export class ModalUtils {
                 </div>
             `;
 
-			const inputEl = modal.querySelector(
-				"#customInput",
-			) as HTMLInputElement;
+			const inputEl = modal.querySelector<HTMLInputElement>("#customInput");
+			if (!inputEl) {
+				reject(new Error("Failed to create modal"));
+				return;
+			}
 
-			modal.querySelector("#cancelBtn").onclick = () => {
-				reject(new Error("Cancelled prompt"));
-				document.body.removeChild(modal);
-			};
+			const cancelBtn = modal.querySelector<HTMLButtonElement>("#cancelBtn");
+			if (cancelBtn) {
+				cancelBtn.onclick = () => {
+					reject(new Error("Cancelled prompt"));
+					document.body.removeChild(modal);
+				};
+			}
 
 			inputEl.addEventListener("keydown", (event: KeyboardEvent) => {
 				if (event.key === "Enter") {

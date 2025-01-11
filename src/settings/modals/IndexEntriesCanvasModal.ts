@@ -1,6 +1,6 @@
 import { App, Modal, Notice, Setting } from "obsidian";
 import { IndexNoteManagerPlugin } from "../../pluginTypes";
-import { Index } from "../../types";
+import { Index, IndexEntry } from "../../types";
 import { CanvasData, CanvasNode, CanvasEdge } from "../interfaces/CanvasTypes";
 
 export class IndexEntriesCanvasModal extends Modal {
@@ -20,6 +20,15 @@ export class IndexEntriesCanvasModal extends Modal {
         this.indexName = indexName;
         this.index = index;
         this.canvasName = `${indexName}-entries`;
+    }
+
+    private isIndexEntry(obj: unknown): obj is IndexEntry {
+        return (
+            typeof obj === 'object' &&
+            obj !== null &&
+            'metadata' in obj &&
+            typeof (obj as any).metadata === 'object'
+        );
     }
 
     private generateEntriesCanvasJson(): CanvasData {
@@ -77,26 +86,30 @@ export class IndexEntriesCanvasModal extends Modal {
 
         Object.entries(this.index.entries).forEach(([entryName, entry]) => {
             // Add entry node
+            const entryLevel = entry.metadata?.level ?? "unknown";
             addNode(
                 entryName,
-                `${entryName}\nLevel: ${entry.metadata.level}`,
+                `${entryName}\nLevel: ${entryLevel}`,
                 x,
                 y,
                 "4", // green for entries
             );
 
             // Process children
-            if (entry.children) {
-                Object.entries(entry.children).forEach(
-                    ([childName, childEntry], childIndex) => {
+            const children = entry.children;
+            if (children && typeof children === 'object') {
+                const childEntries = Object.entries(children);
+                childEntries.forEach(([childName, childEntry], childIndex) => {
+                    if (this.isIndexEntry(childEntry)) {
                         // Position child below parent
                         const childY = y + VERTICAL_GAP;
                         const childX =
-                            x + (childIndex - Object.keys(entry.children).length / 2) * HORIZONTAL_GAP;
+                            x + (childIndex - childEntries.length / 2) * HORIZONTAL_GAP;
 
+                        const childLevel = childEntry.metadata?.level ?? "unknown";
                         addNode(
                             childName,
-                            `${childName}\nLevel: ${childEntry.metadata.level}`,
+                            `${childName}\nLevel: ${childLevel}`,
                             childX,
                             childY,
                             "5", // cyan for child entries
@@ -106,8 +119,8 @@ export class IndexEntriesCanvasModal extends Modal {
                         addEdge(entryName, childName, "has child", "6"); // purple for edges
 
                         maxY = Math.max(maxY, childY);
-                    },
-                );
+                    }
+                });
             }
 
             x += HORIZONTAL_GAP;
