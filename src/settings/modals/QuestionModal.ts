@@ -100,11 +100,6 @@ export class QuestionModal extends Modal {
                     .setValue(this.data.type)
                     .onChange(value => {
                         this.data.type = value as QuestionType;
-                        // If switching to an index-based type, set answerId to first available index
-                        if ((value === "tpsuggester" || value === "nestedTpsuggester") && this.availableIndices.length > 0) {
-                            this.data.indexName = this.availableIndices[0];
-                            this.data.answerId = this.data.indexName;
-                        }
                         this.updateModalContent();
                     });
             });
@@ -115,13 +110,12 @@ export class QuestionModal extends Modal {
             .setDesc("A unique identifier for this question (snake_case)")
             .addText(text => {
                 text.setValue(this.data.questionId)
-                    .setDisabled(this.isEdit) // Disable in edit mode
+                    .setDisabled(this.isEdit)
                     .onChange(value => {
                         const snakeCaseValue = toSnakeCase(value);
                         text.setValue(snakeCaseValue);
                         this.data.questionId = snakeCaseValue;
                         
-                        // Show warning if ID already exists
                         if (!this.validateQuestionId(snakeCaseValue)) {
                             text.inputEl.style.borderColor = "var(--text-error)";
                             new Notice("This Question ID already exists!");
@@ -136,8 +130,12 @@ export class QuestionModal extends Modal {
 
         this.updateModalContent();
 
-        // Save button
-        new Setting(contentEl)
+        // Save button (moved to bottom)
+        const saveButtonContainer = contentEl.createDiv({ cls: "save-button-container" });
+        saveButtonContainer.style.marginTop = "2em";
+        saveButtonContainer.style.textAlign = "right";
+        
+        new Setting(saveButtonContainer)
             .addButton(btn =>
                 btn
                     .setButtonText("Save")
@@ -167,7 +165,19 @@ export class QuestionModal extends Modal {
     }
 
     private createInputPromptContent(container: HTMLElement) {
-        // Answer ID for input prompt
+        // Prompt (moved up)
+        new Setting(container)
+            .setName("Prompt")
+            .setDesc("The question to ask the user")
+            .addText(text =>
+                text
+                    .setValue(this.data.prompt)
+                    .onChange(value => {
+                        this.data.prompt = value;
+                    })
+            );
+
+        // Answer ID
         new Setting(container)
             .setName("Answer ID")
             .setDesc("The ID used to reference this answer in placeholders (snake_case)")
@@ -179,18 +189,6 @@ export class QuestionModal extends Modal {
                         this.data.answerId = snakeCaseValue;
                     });
             });
-
-        // Prompt
-        new Setting(container)
-            .setName("Prompt")
-            .setDesc("The question to ask the user")
-            .addText(text =>
-                text
-                    .setValue(this.data.prompt)
-                    .onChange(value => {
-                        this.data.prompt = value;
-                    })
-            );
     }
 
     private createIndexBasedContent(container: HTMLElement) {
@@ -356,7 +354,7 @@ export class QuestionModal extends Modal {
             }
         }
 
-        // Prompt
+        // Prompt (moved up, only for non-nested questions)
         new Setting(container)
             .setName("Prompt")
             .setDesc("The question to ask the user")
@@ -428,6 +426,16 @@ export class QuestionModal extends Modal {
                         });
                 });
 
+            // Prompt (moved up in nested questions)
+            new Setting(questionContainer)
+                .setName("Prompt")
+                .addText(text => {
+                    text.setValue(nestedQuestion.prompt)
+                        .onChange(value => {
+                            nestedQuestion.prompt = value;
+                        });
+                });
+
             // Answer ID
             new Setting(questionContainer)
                 .setName("Answer ID")
@@ -436,16 +444,6 @@ export class QuestionModal extends Modal {
                         .onChange(value => {
                             nestedQuestion.answerId = toSnakeCase(value);
                             text.setValue(nestedQuestion.answerId);
-                        });
-                });
-
-            // Prompt
-            new Setting(questionContainer)
-                .setName("Prompt")
-                .addText(text => {
-                    text.setValue(nestedQuestion.prompt)
-                        .onChange(value => {
-                            nestedQuestion.prompt = value;
                         });
                 });
 
