@@ -21,6 +21,7 @@ export interface GlobalIndex {
 export interface NoteConfig {
 	noteTypes: NoteType[];
 	questions: Question[];
+	indices: { [key: string]: Index };
 }
 
 export interface NoteType {

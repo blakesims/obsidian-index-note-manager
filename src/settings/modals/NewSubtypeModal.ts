@@ -1,22 +1,10 @@
 import { App, Modal, Notice, Setting, ButtonComponent } from "obsidian";
 import { IndexNoteManagerPlugin } from "../../pluginTypes";
 import { FrontMatterField, FrontMatterType, Question } from "../../types";
-import { QuestionEditModal } from "./QuestionEditModal";
+import { QuestionModal } from "./QuestionModal";
 import { createFrontMatterFieldComponent, showTemplaterFunctionInput } from "../components/FrontMatterField";
 
-interface NewSubtypeModalData {
-    questionId: string;
-    answerId: string;
-    prompt: string;
-}
-
 export class NewSubtypeModal extends Modal {
-    private modalData: NewSubtypeModalData = {
-        questionId: "",
-        answerId: "",
-        prompt: "",
-    };
-
     private plugin: IndexNoteManagerPlugin;
     private noteTypeId: string;
     private subtypeId = "";
@@ -35,6 +23,7 @@ export class NewSubtypeModal extends Modal {
     onOpen() {
         const { contentEl } = this;
         contentEl.empty();
+
         contentEl.createEl("h2", {
             text: `New Subtype for ${this.noteTypeId}`,
         });
@@ -74,105 +63,43 @@ export class NewSubtypeModal extends Modal {
 
         // Front Matter Configuration
         this.frontMatterContainer = contentEl.createEl("details");
-        this.frontMatterContainer.createEl("summary", {
-            text: "Front Matter Configuration",
-        });
-
-        // Add Front Matter Entry button
-        new Setting(this.frontMatterContainer)
-            .setName("Add Front Matter Entry")
-            .setDesc("Add a new front matter field")
-            .addButton((btn) =>
-                btn.setButtonText("Add Field").onClick(() => {
-                    this.frontMatterFields.push({
-                        id: "",
-                        value: "",
-                        type: "text" as FrontMatterType,
-                    });
-                    this.refreshFrontMatterSection();
-                }),
-            );
+        this.displayFrontMatterSection(this.frontMatterContainer);
 
         // Save button
-        new Setting(contentEl).addButton((btn) =>
-            btn
-                .setButtonText("Save")
-                .setCta()
-                .onClick(async () => {
-                    if (!this.subtypeId) {
-                        new Notice("Subtype ID is required");
-                        return;
-                    }
-
-                    if (!this.folder) {
-                        new Notice("Folder is required");
-                        return;
-                    }
-
-                    // Check if subtype already exists
-                    const existingSubtypes = this.plugin.configManager
-                        .getNoteConfig()
-                        .noteTypes.find(
-                            (type) => type.id === this.noteTypeId,
-                        )?.subtypes;
-                    if (
-                        existingSubtypes?.some(
-                            (subtype) => subtype.id === this.subtypeId,
-                        )
-                    ) {
-                        new Notice(
-                            `Subtype "${this.subtypeId}" already exists`,
-                        );
-                        return;
-                    }
-
-                    try {
-                        const noteConfig = this.plugin.configManager.getNoteConfig();
-                        const typeIndex = noteConfig.noteTypes.findIndex(
-                            (type) => type.id === this.noteTypeId,
-                        );
-
-                        if (typeIndex === -1) {
-                            throw new Error("Note type not found");
+        new Setting(contentEl)
+            .addButton((btn) =>
+                btn
+                    .setButtonText("Save")
+                    .setCta()
+                    .onClick(async () => {
+                        if (!this.subtypeId || !this.folder) {
+                            new Notice("Please fill in all required fields");
+                            return;
                         }
 
-                        const newSubtype = {
+                        const noteConfig = this.plugin.configManager.getNoteConfig();
+                        const noteType = noteConfig.noteTypes.find(
+                            (nt) => nt.id === this.noteTypeId
+                        );
+
+                        if (!noteType) {
+                            new Notice("Note type not found");
+                            return;
+                        }
+
+                        noteType.subtypes.push({
                             id: this.subtypeId,
                             folder: this.folder,
-                            template: this.template || "",
-                            title: this.subtypeId,
+                            template: this.template,
+                            frontMatter: this.frontMatterFields,
                             questions: this.selectedQuestions,
-                            frontMatter: this.frontMatterFields.map(
-                                (field) => ({
-                                    id: field.id,
-                                    value: field.value,
-                                    type: field.type,
-                                }),
-                            ),
-                        };
+                            title: "",
+                        });
 
-                        noteConfig.noteTypes[typeIndex].subtypes.push(
-                            newSubtype,
-                        );
-                        await this.plugin.configManager.setNoteConfig(
-                            noteConfig,
-                        );
                         await this.plugin.configManager.saveData();
-                        new Notice(`Created new subtype "${this.subtypeId}"`);
                         this.close();
-                    } catch (error) {
-                        if (error instanceof Error) {
-                            new Notice(
-                                `Failed to create subtype: ${error.message}`,
-                            );
-                            console.error("Failed to create subtype:", error);
-                        } else {
-                            new Notice("Failed to create subtype: Unknown error");
-                            console.error("Failed to create subtype:", error);
-                        }
-                    }
-                }),
-        );
+                    }),
+            );
     }
 
     private displayQuestionsSection(containerEl: HTMLElement) {
@@ -191,18 +118,20 @@ export class NewSubtypeModal extends Modal {
             attr: { style: "margin-bottom: 20px;" },
         });
 
-        // Add "View Available Placeholders" button
-        new ButtonComponent(buttonsContainer)
-            .setButtonText("View Available Placeholders")
-            .onClick(() => {
-                this.showAvailablePlaceholders();
-            });
-
         // Add "Add New Question" button
         new ButtonComponent(buttonsContainer)
             .setButtonText("Add New Question")
             .onClick(() => {
-                this.showNewQuestionModal();
+                new QuestionModal(
+                    this.app,
+                    this.plugin,
+                    (question: Question) => {
+                        const noteConfig = this.plugin.configManager.getNoteConfig();
+                        noteConfig.questions.push(question);
+                        this.plugin.configManager.saveData();
+                        this.refreshQuestionsSection(questionsContainer);
+                    }
+                ).open();
             });
 
         const questions = this.plugin.configManager.getNoteConfig().questions;
@@ -212,51 +141,57 @@ export class NewSubtypeModal extends Modal {
                 .setDesc(this.getQuestionDescription(question))
                 .addToggle((toggle) =>
                     toggle
-                        .setValue(
-                            this.selectedQuestions.includes(
-                                question.questionId,
-                            ),
-                        )
+                        .setValue(this.selectedQuestions.includes(question.questionId))
                         .onChange((value) => {
                             if (value) {
-                                this.selectedQuestions.push(
-                                    question.questionId,
-                                );
+                                this.selectedQuestions.push(question.questionId);
                             } else {
-                                this.selectedQuestions =
-                                    this.selectedQuestions.filter(
-                                        (id) => id !== question.questionId,
-                                    );
+                                this.selectedQuestions = this.selectedQuestions.filter(
+                                    (id) => id !== question.questionId
+                                );
                             }
-                            // Refresh the front matter section to update available answer IDs
                             this.refreshFrontMatterSection();
-                        }),
+                        })
                 )
                 .addExtraButton((button) => {
                     button
                         .setIcon("edit")
                         .setTooltip("Edit Question")
                         .onClick(() => {
-                            new QuestionEditModal(
+                            new QuestionModal(
                                 this.app,
                                 this.plugin,
-                                question,
+                                (updatedQuestion: Question) => {
+                                    const noteConfig = this.plugin.configManager.getNoteConfig();
+                                    const index = noteConfig.questions.findIndex(
+                                        (q) => q.questionId === question.questionId
+                                    );
+                                    if (index !== -1) {
+                                        noteConfig.questions[index] = updatedQuestion;
+                                        this.plugin.configManager.saveData();
+                                        this.refreshQuestionsSection(questionsContainer);
+                                    }
+                                },
+                                question
                             ).open();
                         });
                 });
         });
     }
 
+    private refreshQuestionsSection(container: HTMLElement) {
+        container.empty();
+        this.displayQuestionsSection(container);
+    }
+
     private getQuestionDescription(question: Question): string {
+        let desc = `Type: ${question.type}\nPrompt: ${question.prompt}`;
         if (question.type === "nestedTpsuggester" && question.nest) {
-            return `Nested questions:\n${question.nest
-                .map(
-                    (q, i) =>
-                        `${i + 1}. ${q.prompt} (Answer ID: ${q.answerId})`,
-                )
+            desc += `\nNested questions:\n${question.nest
+                .map((q, i) => `${i + 1}. ${q.prompt} (Answer ID: ${q.answerId})`)
                 .join("\n")}`;
         }
-        return question.prompt || "No prompt specified";
+        return desc;
     }
 
     private refreshFrontMatterSection() {
@@ -279,205 +214,39 @@ export class NewSubtypeModal extends Modal {
             attr: { style: "margin-bottom: 10px; color: var(--text-muted);" },
         });
 
-        // Display available answer IDs from selected questions
-        const availableAnswerIds = this.getAvailableAnswerIds();
-        if (availableAnswerIds.size > 0) {
-            const answerIdsContainer = frontMatterDetails.createEl("div", {
-                cls: "answer-ids-container",
-                attr: {
-                    style: "margin: 10px 0; padding: 10px; background-color: var(--background-secondary); border-radius: 5px;",
-                },
-            });
-
-            answerIdsContainer.createEl("h3", {
-                text: "Available Placeholders from Selected Questions",
-                attr: { style: "margin: 0 0 10px 0; font-size: 0.9em;" },
-            });
-
-            const list = answerIdsContainer.createEl("ul", {
-                attr: { style: "margin: 0; padding-left: 20px;" },
-            });
-
-            Array.from(availableAnswerIds)
-                .sort()
-                .forEach((id) => {
-                    list.createEl("li", {
-                        text: `{{${id}}}`,
-                        attr: { style: "font-family: monospace;" },
-                    });
-                });
-        }
-
-        // Add Field button and existing fields
+        // Add "Add Field" button
         new Setting(frontMatterDetails)
-            .setName("Add Front Matter Entry")
+            .setName("Add Front Matter Field")
             .setDesc("Add a new front matter field")
             .addButton((btn) =>
-                btn.setButtonText("Add Field").onClick(() => {
-                    this.frontMatterFields.push({
-                        id: "",
-                        value: "",
-                        type: "text" as FrontMatterType,
-                    });
-                    this.refreshFrontMatterSection();
-                }),
+                btn
+                    .setButtonText("Add Field")
+                    .setCta()
+                    .onClick(() => {
+                        const newField: FrontMatterField = {
+                            id: "",
+                            value: "",
+                            type: "text",
+                        };
+                        this.frontMatterFields.push(newField);
+                        this.refreshFrontMatterSection();
+                    }),
             );
 
-        // Display existing front matter fields
+        // Display fields
+        const fieldsContainer = frontMatterDetails.createDiv();
         this.frontMatterFields.forEach((field, index) => {
             createFrontMatterFieldComponent(
-                frontMatterDetails,
+                fieldsContainer,
                 field,
-                index,
-                (updatedField, idx) => {
-                    this.frontMatterFields[idx] = updatedField;
-                    this.plugin.configManager.saveData();
-                },
-                (idx) => {
-                    this.frontMatterFields.splice(idx, 1);
-                    this.refreshFrontMatterSection();
-                },
-                (container, field) => {
-                    showTemplaterFunctionInput(container, field, (updatedField) => {
-                        this.frontMatterFields[index] = updatedField;
-                        this.plugin.configManager.saveData();
-                    });
-                }
-            );
-        });
-    }
-
-    private getAvailableAnswerIds(): Set<string> {
-        const answerIds = new Set<string>();
-        const questions = this.plugin.configManager.getNoteConfig().questions;
-
-        this.selectedQuestions.forEach((selectedId) => {
-            const question = questions.find((q) => q.questionId === selectedId);
-            if (question) {
-                if (question.type === "nestedTpsuggester" && question.nest) {
-                    question.nest.forEach((q) => {
-                        if (q.answerId) answerIds.add(q.answerId);
-                    });
-                } else if (question.answerId) {
-                    answerIds.add(question.answerId);
-                }
-            }
-        });
-
-        return answerIds;
-    }
-
-    private showAvailablePlaceholders() {
-        const placeholders = this.selectedQuestions
-            .map((questionId) => {
-                const question = this.plugin.configManager
-                    .getNoteConfig()
-                    .questions.find((q) => q.questionId === questionId);
-                if (!question) return null;
-
-                if (question.type === "nestedTpsuggester" && question.nest) {
-                    return question.nest
-                        .map((q) => `{{${q.answerId}}}`)
-                        .join("\n");
-                }
-                return `{{${question.answerId}}}`;
-            })
-            .filter((p) => p)
-            .join("\n");
-
-        const modal = new Modal(this.app);
-        modal.titleEl.setText("Available Placeholders");
-        modal.contentEl.createEl("p", {
-            text: "These placeholders can be used in your front matter configuration:",
-            attr: { style: "margin-bottom: 10px;" },
-        });
-
-        if (placeholders) {
-            modal.contentEl.createEl("pre", {
-                text: placeholders,
-                attr: {
-                    style: "background-color: var(--background-secondary); padding: 10px; border-radius: 5px;",
-                },
-            });
-        } else {
-            modal.contentEl.createEl("p", {
-                text: "No placeholders available. Select some questions first.",
-                attr: { style: "color: var(--text-muted);" },
-            });
-        }
-
-        modal.open();
-    }
-
-    private showNewQuestionModal() {
-        const modal = new Modal(this.app);
-        modal.titleEl.setText("Add New Question");
-
-        const { contentEl } = modal;
-
-        // Question ID
-        new Setting(contentEl)
-            .setName("Question ID")
-            .setDesc("A unique identifier for this question")
-            .addText((text) =>
-                text
-                    .setPlaceholder("e.g., student_name_question")
-                    .onChange((value) => {
-                        this.modalData.questionId = value;
-                    }),
-            );
-
-        // Answer ID
-        new Setting(contentEl)
-            .setName("Answer ID")
-            .setDesc("The ID used to reference this answer in placeholders")
-            .addText((text) =>
-                text.setPlaceholder("e.g., student_name").onChange((value) => {
-                    this.modalData.answerId = value;
-                }),
-            );
-
-        // Prompt
-        new Setting(contentEl)
-            .setName("Prompt")
-            .setDesc("The question to ask the user")
-            .addText((text) =>
-                text
-                    .setPlaceholder("e.g., What is the student's name?")
-                    .onChange((value) => {
-                        this.modalData.prompt = value;
-                    }),
-            );
-
-        // Save button
-        new Setting(contentEl).addButton((btn) =>
-            btn
-                .setButtonText("Save")
-                .setCta()
-                .onClick(() => {
-                    const { questionId, answerId, prompt } = this.modalData;
-                    if (!questionId || !answerId || !prompt) {
-                        new Notice("Please fill in all fields");
-                        return;
+                (updatedField: FrontMatterField) => {
+                    this.frontMatterFields[index] = updatedField;
+                    if (updatedField.type === "templater") {
+                        showTemplaterFunctionInput(fieldsContainer, updatedField);
                     }
-
-                    const newQuestion: Question = {
-                        questionId,
-                        answerId,
-                        type: "inputPrompt",
-                        prompt,
-                    };
-
-                    const noteConfig = this.plugin.configManager.getNoteConfig();
-                    noteConfig.questions.push(newQuestion);
-                    this.plugin.configManager.saveData();
-
-                    modal.close();
-                    this.refreshFrontMatterSection(); // Refresh just this section
-                }),
-        );
-
-        modal.open();
+                }
+            );
+        });
     }
 
     onClose() {

@@ -1,10 +1,4 @@
-import {
-	App,
-	PluginSettingTab,
-	Setting,
-	TextAreaComponent,
-	ButtonComponent,
-} from "obsidian";
+import { App, PluginSettingTab, Setting, TextAreaComponent } from "obsidian";
 import { IndexNoteManagerPlugin } from "./pluginTypes";
 import {
 	NoteType,
@@ -14,15 +8,13 @@ import {
 	FrontMatterType,
 	FrontMatterField,
 } from "./types";
-import { QuestionEditModal } from "./settings/modals/QuestionEditModal";
 import { NewIndexEntryModal } from "./settings/modals/NewIndexEntryModal";
 import { NewNoteTypeModal } from "./settings/modals/NewNoteTypeModal";
 import { NewSubtypeModal } from "./settings/modals/NewSubtypeModal";
-import { PlaceholderViewerModal } from "./settings/modals/PlaceholderViewerModal";
 import { IndexEntriesCanvasModal } from "./settings/modals/IndexEntriesCanvasModal";
-import { NewQuestionModal } from "./settings/modals/NewQuestionModal";
 import { NewIndexModal } from "./settings/modals/NewIndexModal";
 import { IndexRelationshipsCanvasModal } from "./settings/modals/IndexRelationshipsCanvasModal";
+import { createQuestionDisplay } from "./settings/components/QuestionDisplay";
 
 export class IndexNoteManagerSettingTab extends PluginSettingTab {
 	plugin: IndexNoteManagerPlugin;
@@ -40,156 +32,8 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 		containerEl.createEl("h1", { text: "Index Note Manager Settings" });
 
 		// Questions Section
-		const questionsSection = containerEl.createEl("details", {
-			cls: "questions-section",
-		});
-
-		// Add buttons at the top
-		const buttonContainer = questionsSection.createEl("div", {
-			cls: "question-buttons-container",
-			attr: { style: "margin-bottom: 20px;" },
-		});
-
-		new Setting(buttonContainer)
-			.addButton((btn) =>
-				btn.setButtonText("View Available Placeholders").onClick(() => {
-					new PlaceholderViewerModal(
-						this.app,
-						this.plugin.configManager.getNoteConfig().questions,
-					).open();
-				}),
-			)
-			.addButton((btn) =>
-				btn.setButtonText("Add New Question").onClick(() => {
-					new NewQuestionModal(this.app, this.plugin, this).open();
-				}),
-			);
-
-		questionsSection.createEl("summary", {
-			text: "Questions Configuration",
-		});
-
-		// Display questions
-		const questions = this.plugin.configManager.getNoteConfig().questions;
-		questions.forEach((question) => {
-			const questionDetails = questionsSection.createEl("details", {
-				cls: "question-details",
-			});
-
-			const summaryContainer = questionDetails.createEl("summary", {
-				cls: "question-summary",
-				attr: {
-					style: "display: flex; justify-content: space-between; align-items: center;",
-				},
-			});
-
-			summaryContainer.createEl("span", { text: question.questionId });
-
-			new ButtonComponent(summaryContainer)
-				.setIcon("edit")
-				.setTooltip("Edit Question")
-				.onClick((e: MouseEvent) => {
-					e.preventDefault();
-					new QuestionEditModal(
-						this.app,
-						this.plugin,
-						question,
-					).open();
-				});
-
-			// Basic question info
-			new Setting(questionDetails)
-				.setName("Question ID")
-				.setDesc(question.questionId)
-				.setClass("question-setting");
-
-			// For nested questions, show all answer IDs that will be generated
-			if (question.type === "nestedTpsuggester" && question.nest) {
-				const answerIdsList = question.nest
-					.map((q, i) => `${i + 1}. ${q.answerId}`)
-					.join("\n");
-				new Setting(questionDetails)
-					.setName("Answer IDs")
-					.setDesc(answerIdsList)
-					.setClass("question-setting");
-
-				// Show all prompts in sequence
-				const promptsList = question.nest
-					.map((q, i) => `${i + 1}. ${q.prompt}`)
-					.join("\n");
-				new Setting(questionDetails)
-					.setName("Prompts")
-					.setDesc(promptsList)
-					.setClass("question-setting");
-
-				// Show the index relationship
-				const parentIndex = question.indexName;
-				if (parentIndex) {
-					const childIndex =
-						this.plugin.configManager.getIndexConfig(parentIndex)
-							?.children?.[0];
-					new Setting(questionDetails)
-						.setName("Index Relationship")
-						.setDesc(`${parentIndex} → ${childIndex || "N/A"}`)
-						.setClass("question-setting");
-				}
-			} else {
-				new Setting(questionDetails)
-					.setName("Answer ID")
-					.setDesc(question.answerId || "N/A")
-					.setClass("question-setting");
-
-				new Setting(questionDetails)
-					.setName("Prompt")
-					.setDesc(question.prompt || "No prompt specified")
-					.setClass("question-setting");
-
-				if (question.indexName) {
-					new Setting(questionDetails)
-						.setName("Index Name")
-						.setDesc(question.indexName)
-						.setClass("question-setting");
-				}
-			}
-
-			new Setting(questionDetails)
-				.setName("Type")
-				.setDesc(question.type)
-				.setClass("question-setting");
-
-			// Index-related settings
-			if (question.indexName) {
-				new Setting(questionDetails)
-					.setName("Index Name")
-					.setDesc(question.indexName)
-					.setClass("question-setting");
-			}
-
-			if (question.createNewEntry !== undefined) {
-				new Setting(questionDetails)
-					.setName("Can Create New Entry")
-					.setDesc(question.createNewEntry ? "Yes" : "No")
-					.setClass("question-setting");
-			}
-
-			if (question.allowManualEntry !== undefined) {
-				new Setting(questionDetails)
-					.setName("Allow Manual Entry")
-					.setDesc(question.allowManualEntry ? "Yes" : "No")
-					.setClass("question-setting");
-			}
-
-			if (question.multipleSelections !== undefined) {
-				new Setting(questionDetails)
-					.setName("Multiple Selections")
-					.setDesc(question.multipleSelections ? "Yes" : "No")
-					.setClass("question-setting");
-			}
-
-			// Nested questions
-			if (question.type === "nestedTpsuggester") {
-				this.displayNestedQuestions(questionDetails, question);
-			}
+		createQuestionDisplay(containerEl, this.plugin, () => {
+			this.display(); // Refresh the entire settings tab
 		});
 
 		// Indices Section
@@ -635,9 +479,9 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				// Display existing questions
 				if (subtype.questions && subtype.questions.length > 0) {
 					subtype.questions.forEach((questionId: string) => {
-						const question = questions.find(
-							(q) => q.questionId === questionId,
-						);
+						const question = this.plugin.configManager
+							.getNoteConfig()
+							.questions.find((q) => q.questionId === questionId);
 						const container = questionsContainer.createEl("div", {
 							cls: "question-config",
 							attr: {
@@ -870,35 +714,6 @@ export class IndexNoteManagerSettingTab extends PluginSettingTab {
 				}
 			});
 		});
-
-		// Add View Placeholders button at the top of Questions Section
-		new Setting(questionsSection)
-			.setName("View Available Placeholders")
-			.setDesc(
-				"See all placeholders that can be used in templates and front matter",
-			)
-			.addButton((btn) =>
-				btn.setButtonText("View Placeholders").onClick(() => {
-					new PlaceholderViewerModal(this.app, questions).open();
-				}),
-			);
-
-		// Add New Question button
-		new Setting(questionsSection)
-			.setName("Add New Question")
-			.setDesc("Create a new question")
-			.addButton((btn) =>
-				btn
-					.setButtonText("New Question")
-					.setCta()
-					.onClick(() => {
-						new NewQuestionModal(
-							this.app,
-							this.plugin,
-							this,
-						).open();
-					}),
-			);
 	}
 
 	private displayNestedQuestions(container: HTMLElement, question: Question) {
