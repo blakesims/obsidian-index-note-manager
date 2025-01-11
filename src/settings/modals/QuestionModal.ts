@@ -65,14 +65,17 @@ export class QuestionModal extends Modal {
     private getNestedIndices(): Map<string, string[]> {
         const nestedMap = new Map<string, string[]>();
         const indices = this.plugin.configManager.getAllIndices();
+        console.log("Getting nested indices from:", indices);
         
         // First pass: collect direct children
         for (const [indexName, index] of Object.entries(indices)) {
             if (index.children) {
+                console.log(`Found children for ${indexName}:`, index.children);
                 nestedMap.set(indexName, index.children);
             }
         }
         
+        console.log("Final nested indices map:", Object.fromEntries(nestedMap));
         return nestedMap;
     }
 
@@ -203,10 +206,13 @@ export class QuestionModal extends Modal {
                     ? Array.from(this.nestedIndices.keys())
                     : this.availableIndices;
 
+                console.log("Available indices for dropdown:", availableIndices);
+
                 if (this.data.type === "nestedTpsuggester") {
                     // Add options showing the relationships
                     availableIndices.forEach(index => {
                         const children = this.nestedIndices.get(index);
+                        console.log(`Relationship for ${index}:`, children);
                         if (children && children.length > 0) {
                             const label = `${index} → ${children.join(", ")}`;
                             dropdown.addOption(index, label);
@@ -219,6 +225,7 @@ export class QuestionModal extends Modal {
                 }
 
                 if (availableIndices.length === 0 && this.data.type === "nestedTpsuggester") {
+                    console.log("No nested indices available");
                     dropdown.setDisabled(true);
                     container.createEl("div", {
                         text: "No nested indices available. Create parent-child index relationships first.",
@@ -229,6 +236,7 @@ export class QuestionModal extends Modal {
 
                 dropdown.setValue(this.data.indexName || availableIndices[0])
                     .onChange(value => {
+                        console.log("Selected index:", value);
                         this.data.indexName = value;
                         this.data.answerId = value;
 
@@ -544,45 +552,74 @@ export class QuestionModal extends Modal {
     }
 
     private createNestedQuestionsFromHierarchy(parentIndex: string) {
+        console.log("Creating nested questions for parent index:", parentIndex);
+        
         // Get the complete hierarchy for this index
         const indices = this.plugin.configManager.getAllIndices();
+        console.log("All available indices:", indices);
+        
         const parentIndexData = indices[parentIndex];
+        console.log("Parent index data:", parentIndexData);
         
         if (!parentIndexData || !parentIndexData.children || parentIndexData.children.length === 0) {
+            console.log("No valid parent index data or no children found");
             return;
         }
 
-        // Create nested questions for each level
-        const nestedQuestions: QuestionModalData[] = [];
-        let currentIndex = parentIndex;
-        let currentParent = parentIndex;
-        let level = 0;
-
-        while (true) {
-            const currentIndexData = indices[currentIndex];
-            if (!currentIndexData || !currentIndexData.children || currentIndexData.children.length === 0) {
-                break;
+        // Build the complete hierarchy chain
+        const buildHierarchy = (indexName: string): string[] => {
+            console.log("Building hierarchy for:", indexName);
+            const indexData = indices[indexName];
+            console.log("Current index data:", indexData);
+            
+            if (!indexData || !indexData.children || !indexData.children.length) {
+                console.log("Reached end of hierarchy at:", indexName);
+                return [indexName];
             }
+            const result = [indexName, ...buildHierarchy(indexData.children[0])];
+            console.log("Current hierarchy chain:", result);
+            return result;
+        };
 
-            const childIndex = currentIndexData.children[0];
-            nestedQuestions.push({
-                questionId: `${toSnakeCase(childIndex)}_question`,
-                answerId: childIndex,
-                prompt: `Select ${childIndex}:`,
-                type: "tpsuggester" as QuestionType,
-                indexName: childIndex,
+        const hierarchyChain = buildHierarchy(parentIndex);
+        console.log("Final hierarchy chain:", hierarchyChain);
+
+        // Create the minimal structure for nested questions
+        const nestedQuestions: QuestionModalData[] = hierarchyChain.map((indexName, i) => {
+            const isFirstQuestion = i === 0;
+            const parentIndex = i > 0 ? hierarchyChain[i - 1] : null;
+
+            const question: QuestionModalData = {
+                questionId: `${toSnakeCase(indexName)}_question`,
+                answerId: indexName,
+                prompt: isFirstQuestion 
+                    ? `Select ${indexName}:`
+                    : `Select ${indexName} for ${parentIndex}:`,
+                type: "tpsuggester",
                 allowManualEntry: false,
                 createNewEntry: false,
-                multipleSelections: false,
-                parents: [currentParent]
-            });
+                multipleSelections: false
+            };
 
-            currentParent = childIndex;
-            currentIndex = childIndex;
-            level++;
-        }
+            // Only add parents array for child questions
+            if (parentIndex) {
+                question.parents = [parentIndex];
+            }
 
-        this.data.nest = nestedQuestions;
+            return question;
+        });
+
+        // Update the main question data with minimal required properties
+        this.data = {
+            questionId: `${toSnakeCase(parentIndex)}_nested_question`,
+            type: "nestedTpsuggester",
+            indexName: parentIndex,
+            answerId: parentIndex,
+            prompt: `Select ${parentIndex} and related items:`,
+            nest: nestedQuestions
+        };
+
+        console.log("Final question structure:", this.data);
     }
 
     private validateAndSave(): boolean {
