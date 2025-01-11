@@ -1,0 +1,238 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["noteConfig", "indexConfig"],
+    "properties": {
+        "noteConfig": {
+            "type": "object",
+            "required": ["noteTypes", "questions"],
+            "properties": {
+                "noteTypes": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["id", "subtypes"],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "pattern": "^[a-zA-Z0-9-_]+$",
+                                "description": "Unique identifier for the note type"
+                            },
+                            "baseFrontMatterPath": {
+                                "type": "string",
+                                "description": "Optional path to base front matter template"
+                            },
+                            "subtypes": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["id", "folder", "template", "frontMatter", "questions", "title"],
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "pattern": "^[a-zA-Z0-9-_]+$",
+                                            "description": "Unique identifier for the subtype"
+                                        },
+                                        "folder": {
+                                            "type": "string",
+                                            "description": "Path where notes of this subtype will be created"
+                                        },
+                                        "template": {
+                                            "type": "string",
+                                            "description": "Template file path"
+                                        },
+                                        "title": {
+                                            "type": "string",
+                                            "description": "Title template for notes of this type"
+                                        },
+                                        "questions": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "List of question IDs to ask when creating notes"
+                                        },
+                                        "frontMatter": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "required": ["id", "value", "type"],
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string",
+                                                        "description": "Front matter field key"
+                                                    },
+                                                    "value": {
+                                                        "type": "string",
+                                                        "description": "Front matter field value or template"
+                                                    },
+                                                    "type": {
+                                                        "type": "string",
+                                                        "enum": ["string", "text", "array", "link", "checkbox", "date", "datetime", "number"],
+                                                        "description": "Type of the front matter field"
+                                                    }
+                                                },
+                                                "additionalProperties": false
+                                            }
+                                        },
+                                        "indexName": {
+                                            "type": "string",
+                                            "description": "Optional index associated with this subtype"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "required": ["questionId", "answerId", "type", "prompt"],
+                                "properties": {
+                                    "questionId": {
+                                        "type": "string",
+                                        "pattern": "^[a-z0-9_]+$",
+                                        "description": "Unique identifier in snake_case"
+                                    },
+                                    "answerId": {
+                                        "type": "string",
+                                        "pattern": "^[a-z0-9_]+$",
+                                        "description": "Answer identifier in snake_case"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": ["inputPrompt"],
+                                        "description": "Question type"
+                                    },
+                                    "prompt": {
+                                        "type": "string",
+                                        "description": "Question prompt"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            {
+                                "type": "object",
+                                "required": ["questionId", "answerId", "type", "prompt", "indexName", "allowManualEntry", "createNewEntry", "multipleSelections"],
+                                "properties": {
+                                    "questionId": {
+                                        "type": "string",
+                                        "pattern": "^[a-z0-9_]+$"
+                                    },
+                                    "answerId": {
+                                        "type": "string",
+                                        "pattern": "^[a-z0-9_]+$"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": ["tpsuggester"]
+                                    },
+                                    "prompt": {
+                                        "type": "string"
+                                    },
+                                    "indexName": {
+                                        "type": "string"
+                                    },
+                                    "allowManualEntry": {
+                                        "type": "boolean"
+                                    },
+                                    "createNewEntry": {
+                                        "type": "boolean"
+                                    },
+                                    "multipleSelections": {
+                                        "type": "boolean"
+                                    },
+                                    "newEntryNoteType": {
+                                        "type": "string"
+                                    },
+                                    "newEntryNoteSubtype": {
+                                        "type": "string"
+                                    }
+                                },
+                                "additionalProperties": false,
+                                "if": {
+                                    "properties": { "allowManualEntry": { "const": false } }
+                                },
+                                "then": {
+                                    "properties": { "createNewEntry": { "const": false } }
+                                }
+                            },
+                            {
+                                "type": "object",
+                                "required": ["questionId", "type", "indexName", "nest"],
+                                "properties": {
+                                    "questionId": {
+                                        "type": "string",
+                                        "pattern": "^[a-z0-9_]+$"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": ["nestedTpsuggester"]
+                                    },
+                                    "indexName": {
+                                        "type": "string"
+                                    },
+                                    "nest": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "required": ["questionId", "answerId", "prompt", "allowManualEntry", "createNewEntry", "multipleSelections"],
+                                            "properties": {
+                                                "questionId": {
+                                                    "type": "string",
+                                                    "pattern": "^[a-z0-9_]+$"
+                                                },
+                                                "answerId": {
+                                                    "type": "string",
+                                                    "pattern": "^[a-z0-9_]+$"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "allowManualEntry": {
+                                                    "type": "boolean"
+                                                },
+                                                "createNewEntry": {
+                                                    "type": "boolean"
+                                                },
+                                                "multipleSelections": {
+                                                    "type": "boolean"
+                                                },
+                                                "newEntryNoteType": {
+                                                    "type": "string"
+                                                },
+                                                "newEntryNoteSubtype": {
+                                                    "type": "string"
+                                                },
+                                                "parents": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            },
+                                            "additionalProperties": false,
+                                            "if": {
+                                                "properties": { "allowManualEntry": { "const": false } }
+                                            },
+                                            "then": {
+                                                "properties": { "createNewEntry": { "const": false } }
+                                            }
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+} 
